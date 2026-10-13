@@ -1,3 +1,4 @@
 -r requirements.txt
 pytest>=8.0
 respx>=0.21
+httpx2>=2.0  # lo usa starlette.testclient (evita el aviso de deprecación)

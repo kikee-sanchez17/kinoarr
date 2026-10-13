@@ -1,0 +1,19 @@
+# Entorno de pruebas local: solo servicios auxiliares (Kinoarr se ejecuta con uvicorn en tu PC).
+# Uso: docker compose -f docker-compose.dev.yml up -d
+services:
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: kinoarr-dev-qbittorrent
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Madrid
+      - WEBUI_PORT=8081
+    volumes:
+      - ./dev-config/qbittorrent:/config
+      - ./dev-media:/downloads
+    ports:
+      - "8081:8081"
+      - "6881:6881"
+      - "6881:6881/udp"

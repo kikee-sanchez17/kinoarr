@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from app.api import downloads
 
 from app.config import get_settings
 
@@ -17,6 +18,8 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+app.include_router(downloads.router)
 
 
 @app.get("/health")
