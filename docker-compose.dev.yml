@@ -17,3 +17,15 @@ services:
       - "8081:8081"
       - "6881:6881"
       - "6881:6881/udp"
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: kinoarr-dev-prowlarr
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Madrid
+    volumes:
+      - ./dev-config/prowlarr:/config
+    ports:
+      - "9696:9696"
