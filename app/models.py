@@ -2,7 +2,7 @@ from pydantic import BaseModel
 
 
 class Torrent(BaseModel):
-    """Vista simplificada de un torrent de qBittorrent."""
+    """Simplified view of a qBittorrent torrent."""
 
     hash: str
     name: str

@@ -1,5 +1,5 @@
-# Entorno de pruebas local: solo servicios auxiliares (Kinoarr se ejecuta con uvicorn en tu PC).
-# Uso: docker compose -f docker-compose.dev.yml up -d
+# Local test environment: supporting services only (Kinoarr runs with uvicorn on your PC).
+# Usage: docker compose -f docker-compose.dev.yml up -d
 services:
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:latest

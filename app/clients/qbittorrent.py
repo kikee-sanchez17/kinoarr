@@ -5,11 +5,11 @@ from app.path_mapping import map_path
 
 
 class QBittorrentError(Exception):
-    """No se pudo hablar con qBittorrent (conexión, login o error de API)."""
+    """Could not talk to qBittorrent (connection, login or API error)."""
 
 
 class QBittorrentClient:
-    """Capa fina sobre qbittorrent-api: solo traduce llamadas, sin lógica de Kinoarr."""
+    """Thin wrapper over qbittorrent-api: translates calls, holds no Kinoarr logic."""
 
     def __init__(
         self,
@@ -32,21 +32,21 @@ class QBittorrentClient:
         try:
             return self._client.app.version
         except qbittorrentapi.LoginFailed as exc:
-            raise QBittorrentError("Login en qBittorrent fallido: revisa usuario y contraseña") from exc
+            raise QBittorrentError("qBittorrent login failed: check the username and password") from exc
         except qbittorrentapi.APIConnectionError as exc:
-            raise QBittorrentError(f"No se puede conectar con qBittorrent: {exc}") from exc
+            raise QBittorrentError(f"Cannot connect to qBittorrent: {exc}") from exc
         except qbittorrentapi.APIError as exc:
-            raise QBittorrentError(f"Error de la API de qBittorrent: {exc}") from exc
+            raise QBittorrentError(f"qBittorrent API error: {exc}") from exc
 
     def list_torrents(self, completed_only: bool = False) -> list[Torrent]:
         try:
             raw = self._client.torrents_info(status_filter="completed" if completed_only else None)
         except qbittorrentapi.LoginFailed as exc:
-            raise QBittorrentError("Login en qBittorrent fallido: revisa usuario y contraseña") from exc
+            raise QBittorrentError("qBittorrent login failed: check the username and password") from exc
         except qbittorrentapi.APIConnectionError as exc:
-            raise QBittorrentError(f"No se puede conectar con qBittorrent: {exc}") from exc
+            raise QBittorrentError(f"Cannot connect to qBittorrent: {exc}") from exc
         except qbittorrentapi.APIError as exc:
-            raise QBittorrentError(f"Error de la API de qBittorrent: {exc}") from exc
+            raise QBittorrentError(f"qBittorrent API error: {exc}") from exc
 
         return [
             Torrent(

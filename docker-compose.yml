@@ -6,16 +6,16 @@ services:
     user: "1000:1000"
     env_file: .env
     volumes:
-      # Misma ruta interna que qBittorrent (/downloads) para no mapear rutas
+      # Same internal path as qBittorrent (/downloads), so no path mapping is needed
       - ${MEDIA_PATH}:/downloads
     extra_hosts:
-      # Jellyfin corre en network_mode: host
+      # Jellyfin runs with network_mode: host
       - "host.docker.internal:host-gateway"
     networks:
-      - proxy-net   # Nginx Proxy Manager llega a kinoarr:8000
-      - media-net   # qBittorrent (y Prowlarr) accesibles por nombre
-    # En producción NO se publica ningún puerto: la única entrada es el proxy
-    # (con Access List). Para pruebas locales, descomenta:
+      - proxy-net   # Nginx Proxy Manager reaches kinoarr:8000
+      - media-net   # qBittorrent (and Prowlarr) reachable by name
+    # No port is published in production: the only way in is the proxy
+    # (with an Access List). For local testing, uncomment:
     # ports:
     #   - "8000:8000"
 

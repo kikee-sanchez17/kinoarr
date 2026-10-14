@@ -1,17 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.clients.qbittorrent import QBittorrentClient, QBittorrentError
-from app.dependencies import get_qbit_client
+from app.dependencies import get_qbittorrent_client
 from app.models import Torrent
 
 router = APIRouter(prefix="/api/downloads", tags=["downloads"])
 
 
 @router.get("/status")
-def qbit_status(qbit: QBittorrentClient = Depends(get_qbit_client)) -> dict:
-    """Comprueba la conexión y el login con qBittorrent."""
+def qbittorrent_status(qbittorrent: QBittorrentClient = Depends(get_qbittorrent_client)) -> dict:
+    """Check the connection and login to qBittorrent."""
     try:
-        return {"connected": True, "qbittorrent_version": qbit.version()}
+        return {"connected": True, "qbittorrent_version": qbittorrent.version()}
     except QBittorrentError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -19,10 +19,10 @@ def qbit_status(qbit: QBittorrentClient = Depends(get_qbit_client)) -> dict:
 @router.get("", response_model=list[Torrent])
 def list_downloads(
     completed: bool = False,
-    qbit: QBittorrentClient = Depends(get_qbit_client),
+    qbittorrent: QBittorrentClient = Depends(get_qbittorrent_client),
 ) -> list[Torrent]:
-    """Lista los torrents de qBittorrent (solo los completados con ?completed=true)."""
+    """List qBittorrent torrents (only completed ones with ?completed=true)."""
     try:
-        return qbit.list_torrents(completed_only=completed)
+        return qbittorrent.list_torrents(completed_only=completed)
     except QBittorrentError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc

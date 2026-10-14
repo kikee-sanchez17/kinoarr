@@ -5,12 +5,12 @@ from app.config import get_settings
 
 
 @lru_cache
-def get_qbit_client() -> QBittorrentClient:
+def get_qbittorrent_client() -> QBittorrentClient:
     s = get_settings()
     return QBittorrentClient(
-        s.qbit_url,
-        s.qbit_username,
-        s.qbit_password,
+        s.qbittorrent_url,
+        s.qbittorrent_username,
+        s.qbittorrent_password,
         remote_downloads_path=s.qbittorrent_downloads_path,
         local_downloads_path=s.kinoarr_downloads_path,
     )
