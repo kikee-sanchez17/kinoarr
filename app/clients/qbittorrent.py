@@ -1,6 +1,7 @@
 import qbittorrentapi
 
 from app.models import Torrent
+from app.path_mapping import map_path
 
 
 class QBittorrentError(Exception):
@@ -10,7 +11,16 @@ class QBittorrentError(Exception):
 class QBittorrentClient:
     """Capa fina sobre qbittorrent-api: solo traduce llamadas, sin lógica de Kinoarr."""
 
-    def __init__(self, url: str, username: str, password: str) -> None:
+    def __init__(
+        self,
+        url: str,
+        username: str,
+        password: str,
+        remote_downloads_path: str = "",
+        local_downloads_path: str = "",
+    ) -> None:
+        self._remote_downloads_path = remote_downloads_path
+        self._local_downloads_path = local_downloads_path
         self._client = qbittorrentapi.Client(
             host=url,
             username=username,
@@ -45,10 +55,13 @@ class QBittorrentClient:
                 state=t.state,
                 progress=t.progress,
                 size=t.size,
-                save_path=t.save_path,
-                content_path=getattr(t, "content_path", ""),
+                save_path=self._to_local_path(t.save_path),
+                content_path=self._to_local_path(getattr(t, "content_path", "")),
                 category=t.category,
                 tags=[tag.strip() for tag in t.tags.split(",") if tag.strip()],
             )
             for t in raw
         ]
+
+    def _to_local_path(self, qbittorrent_path: str) -> str:
+        return map_path(qbittorrent_path, self._remote_downloads_path, self._local_downloads_path)

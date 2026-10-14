@@ -36,6 +36,7 @@ def show_config() -> dict:
         "jellyfin_url": s.jellyfin_url,
         "prowlarr_url": s.prowlarr_url,
         "subtitle_languages": s.subtitle_language_list,
-        "downloads_path": s.downloads_path,
+        "qbittorrent_downloads_path": s.qbittorrent_downloads_path,
+        "kinoarr_downloads_path": s.kinoarr_downloads_path,
         "poll_interval": s.poll_interval,
     }

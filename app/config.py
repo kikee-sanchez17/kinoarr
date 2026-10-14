@@ -28,8 +28,12 @@ class Settings(BaseSettings):
     # Subtítulos: lista separada por comas (por ahora solo "en")
     subtitle_languages: str = "en"
 
-    # Rutas y poller
-    downloads_path: str = "/downloads"
+    # Path mapping: the downloads folder as qBittorrent sees it and as Kinoarr
+    # sees it. Leave either empty to disable mapping.
+    qbittorrent_downloads_path: str = ""
+    kinoarr_downloads_path: str = ""
+
+    # Poller
     poll_interval: int = 60
 
     @property
