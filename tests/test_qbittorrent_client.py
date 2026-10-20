@@ -15,9 +15,11 @@ class FakeQBittorrentApi:
         self._error = error
         self.added: list[dict] = []
 
-    def torrents_info(self, status_filter: str | None = None) -> list[SimpleNamespace]:
+    def torrents_info(self, status_filter: str | None = None, torrent_hashes: str | None = None):
         if self._error:
             raise self._error
+        if torrent_hashes is not None:
+            return [t for t in self._torrents if t.hash == torrent_hashes]
         return self._torrents
 
     def torrents_add(self, **kwargs):
@@ -71,6 +73,20 @@ def test_list_torrents_keeps_paths_when_mapping_disabled():
 
     assert torrent.save_path == "/downloads/Movies"
     assert torrent.content_path == "/downloads/Movies/Sintel.mkv"
+
+
+def test_get_torrent_returns_mapped_torrent():
+    raw = make_raw_torrent(r"D:\Torrents\Movies", r"D:\Torrents\Movies\Sintel.mkv")
+    client = client_using(FakeQBittorrentApi([raw]), remote=r"D:\Torrents", local="/downloads")
+
+    torrent = client.get_torrent("abc")
+
+    assert torrent is not None
+    assert torrent.content_path == "/downloads/Movies/Sintel.mkv"
+
+
+def test_get_torrent_returns_none_for_unknown_hash():
+    assert client_using(FakeQBittorrentApi([])).get_torrent("missing") is None
 
 
 def test_add_torrent_uploads_torrent_file_with_tags():

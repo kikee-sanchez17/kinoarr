@@ -1,5 +1,6 @@
 from collections.abc import Iterator
 from contextlib import contextmanager
+from typing import Any
 
 import qbittorrentapi
 from qbittorrentapi.torrents import TorrentsAddedMetadata
@@ -47,21 +48,12 @@ class QBittorrentClient:
     def list_torrents(self, completed_only: bool = False) -> list[Torrent]:
         with _translate_errors():
             raw = self._client.torrents_info(status_filter="completed" if completed_only else None)
+        return [self._to_torrent(t) for t in raw]
 
-        return [
-            Torrent(
-                hash=t.hash,
-                name=t.name,
-                state=t.state,
-                progress=t.progress,
-                size=t.size,
-                save_path=self._to_local_path(t.save_path),
-                content_path=self._to_local_path(getattr(t, "content_path", "")),
-                category=t.category,
-                tags=[tag.strip() for tag in t.tags.split(",") if tag.strip()],
-            )
-            for t in raw
-        ]
+    def get_torrent(self, torrent_hash: str) -> Torrent | None:
+        with _translate_errors():
+            raw = self._client.torrents_info(torrent_hashes=torrent_hash)
+        return self._to_torrent(raw[0]) if raw else None
 
     def add_torrent(self, source: TorrentSource, tags: list[str]) -> None:
         """Add a torrent; qBittorrent picks the save folder (its default or the category's)."""
@@ -79,6 +71,19 @@ class QBittorrentClient:
                 return self._client.torrents_add(torrent_files=content, tags=tags)
             case MagnetLink(uri=uri):
                 return self._client.torrents_add(urls=uri, tags=tags)
+
+    def _to_torrent(self, raw: Any) -> Torrent:
+        return Torrent(
+            hash=raw.hash,
+            name=raw.name,
+            state=raw.state,
+            progress=raw.progress,
+            size=raw.size,
+            save_path=self._to_local_path(raw.save_path),
+            content_path=self._to_local_path(getattr(raw, "content_path", "")),
+            category=raw.category,
+            tags=[tag.strip() for tag in raw.tags.split(",") if tag.strip()],
+        )
 
     def _to_local_path(self, qbittorrent_path: str) -> str:
         return map_path(qbittorrent_path, self._remote_downloads_path, self._local_downloads_path)

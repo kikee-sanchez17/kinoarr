@@ -1,10 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException
 
+from app.clients.ffprobe import FfprobeError
 from app.clients.prowlarr import ProwlarrError
 from app.clients.qbittorrent import QBittorrentClient, QBittorrentError, QBittorrentRejectedError
-from app.dependencies import get_download_service, get_qbittorrent_client
-from app.models import DownloadRequest, DownloadStarted, Torrent
+from app.dependencies import get_download_service, get_qbittorrent_client, get_subtitle_detection_service
+from app.models import DownloadRequest, DownloadStarted, SubtitleReport, Torrent
 from app.services.downloads import DownloadService, ReleaseNotFoundError
+from app.services.subtitle_detection import (
+    DownloadPathMissingError,
+    SubtitleDetectionService,
+    TorrentNotFinishedError,
+    TorrentNotFoundError,
+    VideoNotFoundError,
+)
 
 router = APIRouter(prefix="/api/downloads", tags=["downloads"])
 
@@ -44,4 +52,24 @@ def start_download(
     except QBittorrentRejectedError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except (ProwlarrError, QBittorrentError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.get("/{torrent_hash}/subtitles", response_model=SubtitleReport)
+def detect_subtitles(
+    torrent_hash: str,
+    detection_service: SubtitleDetectionService = Depends(get_subtitle_detection_service),
+) -> SubtitleReport:
+    """Report whether a finished download already has an English subtitle."""
+    try:
+        return detection_service.detect(torrent_hash)
+    except TorrentNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except TorrentNotFinishedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except VideoNotFoundError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except (DownloadPathMissingError, FfprobeError) as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except QBittorrentError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -67,3 +68,26 @@ class DownloadRequest(BaseModel):
 class DownloadStarted(BaseModel):
     release_id: str
     title: str
+
+
+class SubtitleStream(BaseModel):
+    """One embedded subtitle track, as ffprobe reports it."""
+
+    index: int
+    codec: str | None
+    language: str | None
+    title: str | None
+    forced: bool
+    hearing_impaired: bool
+
+
+class FoundSubtitle(BaseModel):
+    source: Literal["embedded", "sidecar"]
+    description: str  # e.g. "track 2 (subrip, eng)" or "Movie.en.srt"
+
+
+class SubtitleReport(BaseModel):
+    torrent_hash: str
+    video_path: str
+    has_english_subtitle: bool
+    english_subtitles: list[FoundSubtitle]

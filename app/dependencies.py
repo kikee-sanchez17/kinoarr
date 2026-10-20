@@ -1,11 +1,13 @@
 from functools import lru_cache
 
+from app.clients.ffprobe import FfprobeClient
 from app.clients.prowlarr import ProwlarrClient
 from app.clients.qbittorrent import QBittorrentClient
 from app.config import get_settings
 from app.services.downloads import DownloadService
 from app.services.release_store import ReleaseStore
 from app.services.search import SearchService
+from app.services.subtitle_detection import SubtitleDetectionService
 
 
 @lru_cache
@@ -39,3 +41,13 @@ def get_search_service() -> SearchService:
 @lru_cache
 def get_download_service() -> DownloadService:
     return DownloadService(get_release_store(), get_prowlarr_client(), get_qbittorrent_client())
+
+
+@lru_cache
+def get_ffprobe_client() -> FfprobeClient:
+    return FfprobeClient()
+
+
+@lru_cache
+def get_subtitle_detection_service() -> SubtitleDetectionService:
+    return SubtitleDetectionService(get_qbittorrent_client(), get_ffprobe_client())
