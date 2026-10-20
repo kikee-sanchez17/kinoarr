@@ -1,9 +1,12 @@
+import pytest
 from fastapi.testclient import TestClient
 
-from app.clients.qbittorrent import QBittorrentError
-from app.dependencies import get_qbittorrent_client
+from app.clients.prowlarr import ProwlarrError
+from app.clients.qbittorrent import QBittorrentError, QBittorrentRejectedError
+from app.dependencies import get_download_service, get_qbittorrent_client
 from app.main import app
-from app.models import Torrent
+from app.models import DownloadStarted, Torrent
+from app.services.downloads import ReleaseNotFoundError
 
 
 class FakeQBittorrent:
@@ -68,3 +71,45 @@ def test_qbittorrent_error_returns_502():
     r = c.get("/api/downloads")
     assert r.status_code == 502
     assert "connection refused" in r.json()["detail"]
+
+class FakeDownloadService:
+    def __init__(self, error=None):
+        self._error = error
+
+    def start_download(self, release_id: str) -> DownloadStarted:
+        if self._error:
+            raise self._error
+        return DownloadStarted(release_id=release_id, title="Night of the Living Dead")
+
+
+def download_client_with(fake: FakeDownloadService) -> TestClient:
+    app.dependency_overrides[get_download_service] = lambda: fake
+    return TestClient(app)
+
+
+def test_start_download_returns_202():
+    r = download_client_with(FakeDownloadService()).post("/api/downloads", json={"release_id": "abc"})
+
+    assert r.status_code == 202
+    assert r.json() == {"release_id": "abc", "title": "Night of the Living Dead"}
+
+
+@pytest.mark.parametrize(
+    ("error", "expected_status"),
+    [
+        (ReleaseNotFoundError("Release abc not found: search again"), 404),
+        (QBittorrentRejectedError("qBittorrent refused the torrent"), 409),
+        (QBittorrentError("Cannot connect to qBittorrent"), 502),
+        (ProwlarrError("Cannot connect to Prowlarr at http://prowlarr:9696"), 502),
+    ],
+)
+def test_start_download_errors(error, expected_status):
+    r = download_client_with(FakeDownloadService(error=error)).post("/api/downloads", json={"release_id": "abc"})
+
+    assert r.status_code == expected_status
+    assert r.json()["detail"] == str(error)
+
+
+@pytest.mark.parametrize("body", [{"release_id": ""}, {}])
+def test_start_download_without_release_id_returns_422(body):
+    assert download_client_with(FakeDownloadService()).post("/api/downloads", json=body).status_code == 422

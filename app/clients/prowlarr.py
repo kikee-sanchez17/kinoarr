@@ -7,7 +7,7 @@ import httpx
 from pydantic import BaseModel, ConfigDict, ValidationError
 from pydantic.alias_generators import to_camel
 
-from app.models import Release
+from app.models import MagnetLink, Release, TorrentFile, TorrentSource
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +19,12 @@ RELEASE_ID_LENGTH = 16
 
 # Just above Prowlarr's own ~100 s indexer timeout, so Prowlarr always answers first.
 SEARCH_TIMEOUT_SECONDS = 120
+
+# Fetching a single .torrent file should be quick, unlike a search.
+DOWNLOAD_TIMEOUT_SECONDS = 30
+MAX_REDIRECTS = 5
+MAGNET_PREFIX = "magnet:"
+HTTP_SCHEMES = {"http", "https"}
 
 
 class ProwlarrError(Exception):
@@ -98,6 +104,49 @@ class ProwlarrClient:
         if not isinstance(raw_releases, list):
             raise ProwlarrError("Unexpected response from Prowlarr: expected a list of releases")
         return raw_releases
+
+    def fetch_torrent(self, download_link: str) -> TorrentSource:
+        """Open a release's Prowlarr link and return the .torrent file or magnet link behind it.
+
+        Redirects are followed by hand: a redirect to `magnet:` is the answer
+        itself, and redirects to an indexer's site must not carry the API key header.
+        """
+        response = self._get_download(download_link, to_prowlarr=True)
+        redirects_followed = 0
+        while response.is_redirect:
+            location = response.headers.get("Location")
+            if not location:
+                raise ProwlarrError(f"Could not fetch the torrent: HTTP {response.status_code} without a redirect target")
+            if location.startswith(MAGNET_PREFIX):
+                return MagnetLink(uri=location)
+            if redirects_followed == MAX_REDIRECTS:
+                raise ProwlarrError("Too many redirects while fetching the torrent")
+            next_url = response.url.join(location)
+            if next_url.scheme not in HTTP_SCHEMES:
+                raise ProwlarrError(f"Unexpected redirect to a {next_url.scheme!r} link while fetching the torrent")
+            response = self._get_download(next_url, to_prowlarr=False)
+            redirects_followed += 1
+        return _torrent_file_from(response)
+
+    def _get_download(self, url: str | httpx.URL, to_prowlarr: bool) -> httpx.Response:
+        # Error messages never include the URL: Prowlarr links embed the API key.
+        get = self._client.get if to_prowlarr else httpx.get
+        try:
+            return get(url, follow_redirects=False, timeout=DOWNLOAD_TIMEOUT_SECONDS)
+        except httpx.TimeoutException as exc:
+            raise ProwlarrError("Timed out while fetching the torrent") from exc
+        except httpx.TransportError as exc:
+            if to_prowlarr:
+                raise ProwlarrError(f"Cannot connect to Prowlarr at {self._url}") from exc
+            raise ProwlarrError(f"Cannot connect to {httpx.URL(url).host} while fetching the torrent") from exc
+
+
+def _torrent_file_from(response: httpx.Response) -> TorrentFile:
+    if response.status_code != httpx.codes.OK:
+        raise ProwlarrError(f"Could not fetch the torrent: HTTP {response.status_code}")
+    if not response.content:
+        raise ProwlarrError("Could not fetch the torrent: empty response")
+    return TorrentFile(content=response.content)
 
 
 def _parse_release(raw: Any) -> _ProwlarrRelease | None:

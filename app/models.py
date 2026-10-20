@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Torrent(BaseModel):
@@ -42,3 +42,28 @@ class SearchResult(BaseModel):
     leechers: int | None
     publish_date: datetime
     info_url: str | None
+
+
+class TorrentFile(BaseModel):
+    """A .torrent file's contents."""
+
+    content: bytes
+
+
+class MagnetLink(BaseModel):
+    """A magnet: URI."""
+
+    uri: str
+
+
+# Two types rather than one model with two optional fields, so "neither" or "both" cannot happen.
+TorrentSource = TorrentFile | MagnetLink
+
+
+class DownloadRequest(BaseModel):
+    release_id: str = Field(min_length=1)
+
+
+class DownloadStarted(BaseModel):
+    release_id: str
+    title: str

@@ -1,11 +1,23 @@
-import qbittorrentapi
+from collections.abc import Iterator
+from contextlib import contextmanager
 
-from app.models import Torrent
+import qbittorrentapi
+from qbittorrentapi.torrents import TorrentsAddedMetadata
+
+from app.models import MagnetLink, Torrent, TorrentFile, TorrentSource
 from app.path_mapping import map_path
+
+# Web API before v2.14 answers torrents/add with plain text.
+ADD_FAILED_RESPONSE = "Fails."
+REJECTED_MESSAGE = "qBittorrent refused the torrent (it may already be in the list)"
 
 
 class QBittorrentError(Exception):
     """Could not talk to qBittorrent (connection, login or API error)."""
+
+
+class QBittorrentRejectedError(QBittorrentError):
+    """qBittorrent was reached but refused the torrent (e.g. already added, or invalid)."""
 
 
 class QBittorrentClient:
@@ -29,24 +41,12 @@ class QBittorrentClient:
         )
 
     def version(self) -> str:
-        try:
+        with _translate_errors():
             return self._client.app.version
-        except qbittorrentapi.LoginFailed as exc:
-            raise QBittorrentError("qBittorrent login failed: check the username and password") from exc
-        except qbittorrentapi.APIConnectionError as exc:
-            raise QBittorrentError(f"Cannot connect to qBittorrent: {exc}") from exc
-        except qbittorrentapi.APIError as exc:
-            raise QBittorrentError(f"qBittorrent API error: {exc}") from exc
 
     def list_torrents(self, completed_only: bool = False) -> list[Torrent]:
-        try:
+        with _translate_errors():
             raw = self._client.torrents_info(status_filter="completed" if completed_only else None)
-        except qbittorrentapi.LoginFailed as exc:
-            raise QBittorrentError("qBittorrent login failed: check the username and password") from exc
-        except qbittorrentapi.APIConnectionError as exc:
-            raise QBittorrentError(f"Cannot connect to qBittorrent: {exc}") from exc
-        except qbittorrentapi.APIError as exc:
-            raise QBittorrentError(f"qBittorrent API error: {exc}") from exc
 
         return [
             Torrent(
@@ -63,5 +63,41 @@ class QBittorrentClient:
             for t in raw
         ]
 
+    def add_torrent(self, source: TorrentSource, tags: list[str]) -> None:
+        """Add a torrent; qBittorrent picks the save folder (its default or the category's)."""
+        with _translate_errors():
+            try:
+                response = self._add(source, tags)
+            except qbittorrentapi.Conflict409Error as exc:
+                raise QBittorrentRejectedError(REJECTED_MESSAGE) from exc
+        if _is_rejection(response):
+            raise QBittorrentRejectedError(REJECTED_MESSAGE)
+
+    def _add(self, source: TorrentSource, tags: list[str]) -> str | TorrentsAddedMetadata:
+        match source:
+            case TorrentFile(content=content):
+                return self._client.torrents_add(torrent_files=content, tags=tags)
+            case MagnetLink(uri=uri):
+                return self._client.torrents_add(urls=uri, tags=tags)
+
     def _to_local_path(self, qbittorrent_path: str) -> str:
         return map_path(qbittorrent_path, self._remote_downloads_path, self._local_downloads_path)
+
+
+def _is_rejection(response: str | TorrentsAddedMetadata) -> bool:
+    if isinstance(response, str):
+        return response == ADD_FAILED_RESPONSE
+    # Web API v2.14+ answers with counts instead of "Ok."/"Fails.".
+    return response.get("success_count", 0) == 0 and response.get("failure_count", 0) > 0
+
+
+@contextmanager
+def _translate_errors() -> Iterator[None]:
+    try:
+        yield
+    except qbittorrentapi.LoginFailed as exc:
+        raise QBittorrentError("qBittorrent login failed: check the username and password") from exc
+    except qbittorrentapi.APIConnectionError as exc:
+        raise QBittorrentError(f"Cannot connect to qBittorrent: {exc}") from exc
+    except qbittorrentapi.APIError as exc:
+        raise QBittorrentError(f"qBittorrent API error: {exc}") from exc
