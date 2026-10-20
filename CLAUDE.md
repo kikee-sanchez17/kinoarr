@@ -38,17 +38,20 @@ Kinoarr is a small self-hosted web app that searches for movies, downloads them 
 - Nginx Proxy Manager (on a `proxy-net` network) exposes Kinoarr through a subdomain.
 
 ## Current status
-Done:
-- Project skeleton: FastAPI app with config, health endpoint, Dockerfile, compose file, `.env.example`, MIT LICENSE. First commit made.
-- qBittorrent client: `/api/downloads` and `/api/downloads/status`, unit tests passing, verified against a local qBittorrent with a legal test torrent. Second commit made.
+Done (each feature has its spec in `specs/`):
+- Project skeleton: FastAPI app with config, health endpoint, Dockerfile, compose file, `.env.example`, MIT LICENSE.
+- qBittorrent client: `GET /api/downloads` and `/api/downloads/status`.
+- Path mapping (`specs/path-mapping/`): `map_path` in `app/path_mapping.py`, applied to qBittorrent paths; `QBITTORRENT_DOWNLOADS_PATH` / `KINOARR_DOWNLOADS_PATH`.
+- Prowlarr search (`specs/prowlarr-search/`): Prowlarr in `docker-compose.dev.yml`, `GET /api/search`. Download links stay server-side in an in-memory release store (they embed Prowlarr's API key); the API returns opaque result IDs.
+- Send to qBittorrent (`specs/send-to-qbittorrent/`): `POST /api/downloads` with a result ID. Kinoarr opens the Prowlarr link itself and gives qBittorrent the `.torrent` file or magnet URI; torrents get the tag `kinoarr`; qBittorrent's default save folder is used.
+
+Dev Prowlarr indexers: Internet Archive (for development and tests; only its results are sent to qBittorrent when testing), plus The Pirate Bay and YTS (the user's real sources).
 
 Next, in order:
-1. Path mapping (not done yet): add `path_mapping.py` with `map_path(path, remote_prefix, local_prefix)` and unit tests (cover POSIX, Windows paths with backslashes and drive letters, path-boundary matching, trailing slashes, case rules, and empty config disabling the mapping). Then add the two path variables to settings and `.env.example`, and apply `map_path` in the qBittorrent client.
-2. Add Prowlarr to `docker-compose.dev.yml`, configure a test indexer, write the Prowlarr client and the search endpoint with tests.
-3. ffprobe-based subtitle detection (ffprobe must be in the Docker image and documented for native installs).
-4. Subtitle download (provider still to be decided; OpenSubtitles is the likely candidate and needs an API key) and writing the `.srt` beside the movie.
-5. Simple web UI: search box, results list, download status.
-6. Deployment to the home server, then README.
+1. ffprobe-based subtitle detection on completed torrents tagged `kinoarr` (ffprobe must be in the Docker image and documented for native installs).
+2. Subtitle download (provider still to be decided; OpenSubtitles is the likely candidate and needs an API key) and writing the `.srt` beside the movie.
+3. Simple web UI: search box, results list, download status.
+4. Deployment to the home server, then README.
 
 ## Code quality (clean code)
 - Write clean, readable, maintainable code. Favor clarity over cleverness.
