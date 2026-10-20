@@ -6,7 +6,7 @@ matching rules are where the edge cases live.
 
 from pathlib import Path
 
-from app.models import SubtitleStream
+from app.models import SubtitleCandidate, SubtitleStream
 
 VIDEO_EXTENSIONS = {".mkv", ".mp4", ".m4v", ".avi", ".mov", ".wmv", ".ts", ".webm", ".ogv"}
 # The text formats Jellyfin reads as external subtitles.
@@ -17,6 +17,8 @@ SDH_TAGS = {"sdh", "hi", "cc"}
 # Many releases mark SDH tracks only in the title, not in the disposition flag.
 SDH_TITLE_MARKER = "sdh"
 TAG_SEPARATOR = "."
+# Recognised by `is_english_sidecar` and by Jellyfin.
+DOWNLOADED_SUBTITLE_SUFFIX = ".en.srt"
 
 
 def find_main_video(content_path: Path) -> Path | None:
@@ -54,6 +56,15 @@ def english_sidecars(video_path: Path) -> list[Path]:
         for path in video_path.parent.iterdir()
         if path.is_file() and is_english_sidecar(path.name, video_path.stem)
     )
+
+
+def english_sidecar_path(video_path: Path) -> Path:
+    return video_path.with_name(video_path.stem + DOWNLOADED_SUBTITLE_SUFFIX)
+
+
+def best_candidate(candidates: list[SubtitleCandidate]) -> SubtitleCandidate | None:
+    """Prefer subtitles made for this exact release, then the most downloaded."""
+    return max(candidates, key=lambda candidate: (candidate.hash_match, candidate.download_count), default=None)
 
 
 def _is_video(path: Path) -> bool:

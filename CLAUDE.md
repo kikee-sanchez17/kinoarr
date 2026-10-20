@@ -44,14 +44,16 @@ Done (each feature has its spec in `specs/`):
 - Path mapping (`specs/path-mapping/`): `map_path` in `app/path_mapping.py`, applied to qBittorrent paths; `QBITTORRENT_DOWNLOADS_PATH` / `KINOARR_DOWNLOADS_PATH`.
 - Prowlarr search (`specs/prowlarr-search/`): Prowlarr in `docker-compose.dev.yml`, `GET /api/search`. Download links stay server-side in an in-memory release store (they embed Prowlarr's API key); the API returns opaque result IDs.
 - Send to qBittorrent (`specs/send-to-qbittorrent/`): `POST /api/downloads` with a result ID. Kinoarr opens the Prowlarr link itself and gives qBittorrent the `.torrent` file or magnet URI; torrents get the tag `kinoarr`; qBittorrent's default save folder is used.
+- Subtitle detection (`specs/subtitle-detection/`): `GET /api/downloads/{hash}/subtitles` checks the torrent's largest video for English subtitles (embedded via ffprobe, sidecars `srt`/`ass`/`ssa`/`vtt` beside the video); forced, SDH and untagged do not count.
+- Subtitle download (`specs/subtitle-download/`): OpenSubtitles (search by file hash, then by name), saved as `<video>.en.srt`; `POST /api/downloads/{hash}/subtitles` and a background checker every `POLL_INTERVAL` for finished `kinoarr` torrents (retry state in memory). Optional `OPENSUBTITLES_USERNAME`/`OPENSUBTITLES_PASSWORD` raise the daily quota (20/day on a free account).
 
 Dev Prowlarr indexers: Internet Archive (for development and tests; only its results are sent to qBittorrent when testing), plus The Pirate Bay and YTS (the user's real sources).
 
 Next, in order:
-1. ffprobe-based subtitle detection on completed torrents tagged `kinoarr` (ffprobe must be in the Docker image and documented for native installs).
-2. Subtitle download (provider still to be decided; OpenSubtitles is the likely candidate and needs an API key) and writing the `.srt` beside the movie.
-3. Simple web UI: search box, results list, download status.
-4. Deployment to the home server, then README.
+1. Simple web UI: search box, results list, download status.
+2. Deployment to the home server, then README (document ffprobe/ffmpeg for native installs, PUID/PGID, the OpenSubtitles variables).
+
+Dev note: the Internet Archive trailer in the dev qBittorrent is stuck at 98% (its `.ogv` stalls); use another Internet Archive download for end-to-end checks that need a finished torrent.
 
 ## Code quality (clean code)
 - Write clean, readable, maintainable code. Favor clarity over cleverness.

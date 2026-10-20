@@ -2,6 +2,8 @@ from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+APP_VERSION = "0.1.0"
+
 
 class Settings(BaseSettings):
     """Settings loaded from environment variables or the .env file."""
@@ -24,6 +26,9 @@ class Settings(BaseSettings):
     # External APIs
     tmdb_api_key: str = ""
     opensubtitles_api_key: str = ""
+    # Optional: logging in raises the daily download quota.
+    opensubtitles_username: str = ""
+    opensubtitles_password: str = ""
 
     # Subtitles: comma-separated list (only "en" for now)
     subtitle_languages: str = "en"

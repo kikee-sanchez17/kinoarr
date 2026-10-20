@@ -2,11 +2,17 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.clients.ffprobe import FfprobeError
+from app.clients.opensubtitles import OpenSubtitlesError, QuotaExceededError
 from app.clients.prowlarr import ProwlarrError
 from app.clients.qbittorrent import QBittorrentError, QBittorrentRejectedError
-from app.dependencies import get_download_service, get_qbittorrent_client, get_subtitle_detection_service
+from app.dependencies import (
+    get_download_service,
+    get_qbittorrent_client,
+    get_subtitle_detection_service,
+    get_subtitle_fetch_service,
+)
 from app.main import app
-from app.models import DownloadStarted, FoundSubtitle, SubtitleReport, Torrent
+from app.models import DownloadStarted, FoundSubtitle, SubtitleFetchResult, SubtitleReport, Torrent
 from app.services.downloads import ReleaseNotFoundError
 from app.services.subtitle_detection import (
     DownloadPathMissingError,
@@ -14,6 +20,7 @@ from app.services.subtitle_detection import (
     TorrentNotFoundError,
     VideoNotFoundError,
 )
+from app.services.subtitle_fetch import SubtitleDownloadsDisabledError, SubtitleNotFoundError, SubtitleWriteError
 
 
 class FakeQBittorrent:
@@ -131,6 +138,7 @@ class FakeDetectionService:
             raise self._error
         return SubtitleReport(
             torrent_hash=torrent_hash,
+            torrent_name="Movie",
             video_path="/downloads/Movie/Movie.mkv",
             has_english_subtitle=True,
             english_subtitles=[FoundSubtitle(source="sidecar", description="Movie.en.srt")],
@@ -163,6 +171,48 @@ def test_detect_subtitles_returns_report():
 )
 def test_detect_subtitles_errors(error, expected_status):
     r = detection_client_with(FakeDetectionService(error=error)).get("/api/downloads/abc/subtitles")
+
+    assert r.status_code == expected_status
+    assert r.json()["detail"] == str(error)
+
+
+class FakeFetchService:
+    def __init__(self, error=None):
+        self._error = error
+
+    def fetch(self, torrent_hash: str) -> SubtitleFetchResult:
+        if self._error:
+            raise self._error
+        return SubtitleFetchResult(torrent_hash=torrent_hash, status="downloaded", subtitle_file="Movie.en.srt")
+
+
+def fetch_client_with(fake: FakeFetchService) -> TestClient:
+    app.dependency_overrides[get_subtitle_fetch_service] = lambda: fake
+    return TestClient(app)
+
+
+def test_fetch_subtitle_returns_result():
+    r = fetch_client_with(FakeFetchService()).post("/api/downloads/abc/subtitles")
+
+    assert r.status_code == 200
+    assert r.json() == {"torrent_hash": "abc", "status": "downloaded", "subtitle_file": "Movie.en.srt"}
+
+
+@pytest.mark.parametrize(
+    ("error", "expected_status"),
+    [
+        (SubtitleNotFoundError("No English subtitle found"), 404),
+        (QuotaExceededError(reset_at=None), 429),
+        (OpenSubtitlesError("Cannot connect to OpenSubtitles"), 502),
+        (SubtitleDownloadsDisabledError("set OPENSUBTITLES_API_KEY"), 503),
+        (SubtitleWriteError("check PUID/PGID"), 500),
+        (TorrentNotFoundError("No torrent with hash abc"), 404),
+        (TorrentNotFinishedError("not finished"), 409),
+        (QBittorrentError("Cannot connect to qBittorrent"), 502),
+    ],
+)
+def test_fetch_subtitle_errors(error, expected_status):
+    r = fetch_client_with(FakeFetchService(error=error)).post("/api/downloads/abc/subtitles")
 
     assert r.status_code == expected_status
     assert r.json()["detail"] == str(error)

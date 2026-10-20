@@ -2,8 +2,15 @@ from pathlib import Path
 
 import pytest
 
-from app.models import SubtitleStream
-from app.subtitles import english_sidecars, find_main_video, is_english_embedded, is_english_sidecar
+from app.models import SubtitleCandidate, SubtitleStream
+from app.subtitles import (
+    best_candidate,
+    english_sidecar_path,
+    english_sidecars,
+    find_main_video,
+    is_english_embedded,
+    is_english_sidecar,
+)
 
 
 def make_stream(language: str | None = "eng", title: str | None = None, forced=False, hearing_impaired=False):
@@ -101,3 +108,32 @@ def test_english_sidecars_only_looks_beside_the_video(tmp_path):
     write_file(tmp_path / "Subs" / "Movie.en.srt")
 
     assert english_sidecars(movie) == [beside]
+
+
+def make_candidate(file_id: int, download_count: int, hash_match: bool = False) -> SubtitleCandidate:
+    return SubtitleCandidate(
+        file_id=file_id, file_name=f"{file_id}.srt", download_count=download_count, hash_match=hash_match
+    )
+
+
+def test_english_sidecar_path_is_recognised_as_english_sidecar():
+    video = Path("/downloads/Movie (1968)/Movie.1968.1080p.mkv")
+
+    sidecar = english_sidecar_path(video)
+
+    assert sidecar == Path("/downloads/Movie (1968)/Movie.1968.1080p.en.srt")
+    assert is_english_sidecar(sidecar.name, video.stem)
+
+
+def test_best_candidate_prefers_hash_match_over_downloads():
+    candidates = [make_candidate(1, 10_000), make_candidate(2, 5, hash_match=True), make_candidate(3, 50)]
+
+    assert best_candidate(candidates).file_id == 2
+
+
+def test_best_candidate_without_hash_match_picks_most_downloaded():
+    assert best_candidate([make_candidate(1, 10), make_candidate(2, 50)]).file_id == 2
+
+
+def test_best_candidate_of_nothing_is_none():
+    assert best_candidate([]) is None

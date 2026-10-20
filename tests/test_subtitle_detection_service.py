@@ -73,6 +73,7 @@ def test_reports_english_embedded_and_sidecar_subtitles(movie_folder):
 
     assert ffprobe.probed == [movie_folder / "Movie.mkv"]
     assert report.video_path == str(movie_folder / "Movie.mkv")
+    assert report.torrent_name == "Movie"
     assert report.has_english_subtitle
     assert report.english_subtitles == [
         FoundSubtitle(source="embedded", description="track 2 (subrip, eng)"),

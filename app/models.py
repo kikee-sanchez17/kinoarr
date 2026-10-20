@@ -88,6 +88,22 @@ class FoundSubtitle(BaseModel):
 
 class SubtitleReport(BaseModel):
     torrent_hash: str
+    torrent_name: str
     video_path: str
     has_english_subtitle: bool
     english_subtitles: list[FoundSubtitle]
+
+
+class SubtitleCandidate(BaseModel):
+    """An English subtitle file offered by OpenSubtitles."""
+
+    file_id: int
+    file_name: str
+    download_count: int
+    hash_match: bool  # made for this exact release, so its timing fits
+
+
+class SubtitleFetchResult(BaseModel):
+    torrent_hash: str
+    status: Literal["downloaded", "already_present"]
+    subtitle_file: str | None  # name of the saved .srt
