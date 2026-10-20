@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel
 
 
@@ -13,3 +15,30 @@ class Torrent(BaseModel):
     content_path: str
     category: str
     tags: list[str]
+
+class Release(BaseModel):
+    """A Prowlarr search result as Kinoarr's backend sees it (includes download links)."""
+
+    id: str
+    title: str
+    indexer: str
+    size: int  # bytes
+    seeders: int | None
+    leechers: int | None
+    publish_date: datetime
+    info_url: str | None
+    download_url: str | None
+    magnet_url: str | None
+
+
+class SearchResult(BaseModel):
+    """What the API returns: a Release without its download links, which embed Prowlarr's API key."""
+
+    id: str
+    title: str
+    indexer: str
+    size: int  # bytes
+    seeders: int | None
+    leechers: int | None
+    publish_date: datetime
+    info_url: str | None

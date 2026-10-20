@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import downloads
+from app.api import downloads, search
 from app.config import get_settings
 
 
@@ -20,6 +20,7 @@ app = FastAPI(
 )
 
 app.include_router(downloads.router)
+app.include_router(search.router)
 
 
 @app.get("/health")
