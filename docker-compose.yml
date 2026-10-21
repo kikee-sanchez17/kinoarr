@@ -1,9 +1,13 @@
 services:
   kinoarr:
+    image: ghcr.io/kikee-sanchez17/kinoarr:latest
+    # Or build it yourself from a clone: docker compose up -d --build
     build: .
     container_name: kinoarr
     restart: unless-stopped
-    user: "1000:1000"
+    # Must be able to write into the downloads folder to save subtitles:
+    # usually the same IDs as the qBittorrent container.
+    user: "${PUID:-1000}:${PGID:-1000}"
     env_file: .env
     volumes:
       # Same internal path as qBittorrent (/downloads), so no path mapping is needed

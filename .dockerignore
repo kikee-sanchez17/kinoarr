@@ -1,0 +1,6 @@
+# Send Docker only what the Dockerfile copies; everything else (.env, dev data, .git) stays out.
+*
+!app/
+!requirements.txt
+**/__pycache__
+**/*.py[cod]
