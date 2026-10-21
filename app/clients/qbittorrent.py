@@ -45,9 +45,9 @@ class QBittorrentClient:
         with _translate_errors():
             return self._client.app.version
 
-    def list_torrents(self, completed_only: bool = False) -> list[Torrent]:
+    def list_torrents(self, completed_only: bool = False, tag: str | None = None) -> list[Torrent]:
         with _translate_errors():
-            raw = self._client.torrents_info(status_filter="completed" if completed_only else None)
+            raw = self._client.torrents_info(status_filter="completed" if completed_only else None, tag=tag)
         return [self._to_torrent(t) for t in raw]
 
     def get_torrent(self, torrent_hash: str) -> Torrent | None:

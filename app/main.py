@@ -1,8 +1,10 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager, suppress
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app.api import downloads, search
 from app.config import APP_VERSION, get_settings
@@ -13,6 +15,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 # At INFO, httpx logs every request URL, and Prowlarr download links carry the API key.
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
+
+STATIC_DIR = Path(__file__).parent / "static"
 
 
 @asynccontextmanager
@@ -63,3 +67,8 @@ def show_config() -> dict:
         "kinoarr_downloads_path": s.kinoarr_downloads_path,
         "poll_interval": s.poll_interval,
     }
+
+
+# Mounted last: routes are matched in order, so /health, /api/... and /docs win,
+# and only the remaining paths fall through to the web UI's files.
+app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="web-ui")

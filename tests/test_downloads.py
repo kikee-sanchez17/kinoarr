@@ -33,15 +33,18 @@ class FakeQBittorrent:
             raise self._error
         return "v5.0.0"
 
-    def list_torrents(self, completed_only: bool = False) -> list[Torrent]:
+    def list_torrents(self, completed_only: bool = False, tag: str | None = None) -> list[Torrent]:
         if self._error:
             raise self._error
+        torrents = self._torrents
         if completed_only:
-            return [t for t in self._torrents if t.progress >= 1.0]
-        return self._torrents
+            torrents = [t for t in torrents if t.progress >= 1.0]
+        if tag is not None:
+            torrents = [t for t in torrents if tag in t.tags]
+        return torrents
 
 
-def make_torrent(name: str, progress: float) -> Torrent:
+def make_torrent(name: str, progress: float, tags: list[str] | None = None) -> Torrent:
     return Torrent(
         hash=name.lower(),
         name=name,
@@ -51,7 +54,7 @@ def make_torrent(name: str, progress: float) -> Torrent:
         save_path="/downloads/movies",
         content_path=f"/downloads/movies/{name}",
         category="",
-        tags=[],
+        tags=tags or [],
     )
 
 
@@ -78,6 +81,23 @@ def test_list_all_and_completed():
 
     completed = c.get("/api/downloads", params={"completed": True}).json()
     assert [t["name"] for t in completed] == ["Sintel"]
+
+
+def test_list_filters_by_tag():
+    fake = FakeQBittorrent(
+        [
+            make_torrent("Sintel", 1.0, tags=["kinoarr"]),
+            make_torrent("BigBuckBunny", 0.4, tags=["kinoarr"]),
+            make_torrent("LinuxISO", 1.0),
+        ]
+    )
+    c = client_with(fake)
+
+    tagged = c.get("/api/downloads", params={"tag": "kinoarr"}).json()
+    assert [t["name"] for t in tagged] == ["Sintel", "BigBuckBunny"]
+
+    tagged_completed = c.get("/api/downloads", params={"tag": "kinoarr", "completed": True}).json()
+    assert [t["name"] for t in tagged_completed] == ["Sintel"]
 
 
 def test_qbittorrent_error_returns_502():

@@ -14,8 +14,12 @@ class FakeQBittorrentApi:
         self._add_response = add_response
         self._error = error
         self.added: list[dict] = []
+        self.info_calls: list[dict] = []
 
-    def torrents_info(self, status_filter: str | None = None, torrent_hashes: str | None = None):
+    def torrents_info(
+        self, status_filter: str | None = None, torrent_hashes: str | None = None, tag: str | None = None
+    ):
+        self.info_calls.append({"status_filter": status_filter, "tag": tag})
         if self._error:
             raise self._error
         if torrent_hashes is not None:
@@ -73,6 +77,22 @@ def test_list_torrents_keeps_paths_when_mapping_disabled():
 
     assert torrent.save_path == "/downloads/Movies"
     assert torrent.content_path == "/downloads/Movies/Sintel.mkv"
+
+
+def test_list_torrents_passes_tag_filter_to_qbittorrent():
+    fake_api = FakeQBittorrentApi()
+
+    client_using(fake_api).list_torrents(completed_only=True, tag="kinoarr")
+
+    assert fake_api.info_calls == [{"status_filter": "completed", "tag": "kinoarr"}]
+
+
+def test_list_torrents_without_tag_does_not_filter_by_tag():
+    fake_api = FakeQBittorrentApi()
+
+    client_using(fake_api).list_torrents()
+
+    assert fake_api.info_calls == [{"status_filter": None, "tag": None}]
 
 
 def test_get_torrent_returns_mapped_torrent():

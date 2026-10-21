@@ -1,0 +1,277 @@
+:root {
+  color-scheme: light dark;
+  --background: #f6f7f9;
+  --surface: #ffffff;
+  --text: #1c1f24;
+  --text-muted: #5d6470;
+  --border: #d9dde3;
+  --accent: #2f6fdf;
+  --accent-text: #ffffff;
+  --error: #c0362c;
+  --progress-track: #e3e6eb;
+  --radius: 6px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #15171b;
+    --surface: #1e2127;
+    --text: #e6e8eb;
+    --text-muted: #9aa1ad;
+    --border: #343943;
+    --accent: #5b8ef0;
+    --accent-text: #0b0d10;
+    --error: #f0786e;
+    --progress-track: #2c3038;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Some rules below set display, which would otherwise override the hidden attribute. */
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.4;
+}
+
+.page-header,
+main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+h1 {
+  font-size: 1.5rem;
+  margin: 24px 0 8px;
+}
+
+h2 {
+  font-size: 1.15rem;
+  margin: 24px 0 12px;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+button {
+  font: inherit;
+  padding: 6px 14px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--accent-text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+button.secondary {
+  background: transparent;
+  color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.search-form {
+  display: flex;
+  gap: 8px;
+}
+
+.search-form input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.status {
+  color: var(--text-muted);
+  margin: 8px 0;
+}
+
+.status:empty {
+  display: none;
+}
+
+.status.error {
+  color: var(--error);
+}
+
+.results {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+}
+
+.results th,
+.results td {
+  padding: 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.results th {
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+/* Only titles may wrap; short values (sizes, dates, indexer names) stay on one line. */
+.results td {
+  white-space: nowrap;
+}
+
+.results td.title-cell {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.results .numeric {
+  text-align: right;
+}
+
+.action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.action .status {
+  margin: 0;
+  /* Error messages can be long: wrap them instead of stretching the results table. */
+  white-space: normal;
+  max-width: 20rem;
+}
+
+.downloads {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.download {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  display: grid;
+  gap: 6px;
+}
+
+.download-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.download-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.download-state,
+.download-details {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.progress {
+  height: 6px;
+  background: var(--progress-track);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* On narrow screens each result becomes a card, so the page never scrolls sideways. */
+@media (max-width: 700px) {
+  .results,
+  .results tbody,
+  .results tr,
+  .results td {
+    display: block;
+  }
+
+  .results {
+    border: none;
+    background: none;
+  }
+
+  .results thead {
+    display: none;
+  }
+
+  .results tr {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 8px;
+    padding: 4px 0;
+  }
+
+  .results td {
+    border-bottom: none;
+    padding: 4px 12px;
+    white-space: normal;
+  }
+
+  .results .numeric {
+    text-align: left;
+  }
+
+  .results td[data-label]:not([data-label=""])::before {
+    content: attr(data-label) ": ";
+    color: var(--text-muted);
+  }
+
+  .results td.title-cell {
+    font-weight: 600;
+  }
+
+  .results td.title-cell::before {
+    content: none;
+  }
+}

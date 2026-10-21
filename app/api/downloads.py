@@ -61,11 +61,12 @@ def qbittorrent_status(qbittorrent: QBittorrentClient = Depends(get_qbittorrent_
 @router.get("", response_model=list[Torrent])
 def list_downloads(
     completed: bool = False,
+    tag: str | None = None,
     qbittorrent: QBittorrentClient = Depends(get_qbittorrent_client),
 ) -> list[Torrent]:
-    """List qBittorrent torrents (only completed ones with ?completed=true)."""
+    """List qBittorrent torrents (only completed ones with ?completed=true, only tagged ones with ?tag=...)."""
     try:
-        return qbittorrent.list_torrents(completed_only=completed)
+        return qbittorrent.list_torrents(completed_only=completed, tag=tag)
     except QBittorrentError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
