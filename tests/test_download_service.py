@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -35,7 +35,7 @@ def make_release(download_url: str | None, magnet_url: str | None) -> Release:
         size=1_000,
         seeders=5,
         leechers=1,
-        publish_date=datetime(2020, 1, 1, tzinfo=timezone.utc),
+        publish_date=datetime(2020, 1, 1, tzinfo=UTC),
         info_url=None,
         download_url=download_url,
         magnet_url=magnet_url,

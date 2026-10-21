@@ -50,7 +50,8 @@ class FfprobeClient:
         except subprocess.TimeoutExpired as exc:
             raise FfprobeError(f"ffprobe timed out on {video_path.name}") from exc
         if result.returncode != 0:
-            reason = result.stderr.strip().splitlines()[0] if result.stderr.strip() else f"exit code {result.returncode}"
+            stderr = result.stderr.strip()
+            reason = stderr.splitlines()[0] if stderr else f"exit code {result.returncode}"
             raise FfprobeError(f"ffprobe could not read {video_path.name}: {reason}")
         return result.stdout
 

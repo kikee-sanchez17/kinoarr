@@ -86,6 +86,7 @@ def test_qbittorrent_error_returns_502():
     assert r.status_code == 502
     assert "connection refused" in r.json()["detail"]
 
+
 class FakeDownloadService:
     def __init__(self, error=None):
         self._error = error

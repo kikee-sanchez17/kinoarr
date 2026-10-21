@@ -116,7 +116,9 @@ class ProwlarrClient:
         while response.is_redirect:
             location = response.headers.get("Location")
             if not location:
-                raise ProwlarrError(f"Could not fetch the torrent: HTTP {response.status_code} without a redirect target")
+                raise ProwlarrError(
+                    f"Could not fetch the torrent: HTTP {response.status_code} without a redirect target"
+                )
             if location.startswith(MAGNET_PREFIX):
                 return MagnetLink(uri=location)
             if redirects_followed == MAX_REDIRECTS:

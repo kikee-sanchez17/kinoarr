@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 
@@ -27,7 +27,7 @@ def make_result(title: str) -> SearchResult:
         size=1_000,
         seeders=5,
         leechers=1,
-        publish_date=datetime(2020, 1, 1, tzinfo=timezone.utc),
+        publish_date=datetime(2020, 1, 1, tzinfo=UTC),
         info_url="https://archive.org/details/night",
     )
 

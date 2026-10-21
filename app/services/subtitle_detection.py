@@ -61,8 +61,7 @@ def _main_video_of(torrent: Torrent) -> Path:
     content_path = Path(torrent.content_path)
     if not content_path.exists():
         raise DownloadPathMissingError(
-            f"{content_path} does not exist for Kinoarr: "
-            "check QBITTORRENT_DOWNLOADS_PATH and KINOARR_DOWNLOADS_PATH"
+            f"{content_path} does not exist for Kinoarr: check QBITTORRENT_DOWNLOADS_PATH and KINOARR_DOWNLOADS_PATH"
         )
 
     video_path = find_main_video(content_path)

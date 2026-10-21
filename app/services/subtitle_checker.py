@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from app.clients.opensubtitles import QuotaExceededError
 from app.clients.qbittorrent import QBittorrentClient, QBittorrentError
@@ -19,7 +19,7 @@ DEFAULT_QUOTA_PAUSE = timedelta(hours=24)
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class SubtitleChecker:

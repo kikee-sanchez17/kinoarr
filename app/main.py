@@ -36,7 +36,9 @@ def _start_subtitle_checker() -> asyncio.Task | None:
 
 app = FastAPI(
     title="Kinoarr",
-    description="Unofficial companion app for Jellyfin: search movies, download via qBittorrent, fetch missing subtitles.",
+    description=(
+        "Unofficial companion app for Jellyfin: search movies, download via qBittorrent, fetch missing subtitles."
+    ),
     version=APP_VERSION,
     lifespan=lifespan,
 )

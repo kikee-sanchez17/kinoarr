@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from app.clients.opensubtitles import OpenSubtitlesError, QuotaExceededError
 from app.clients.qbittorrent import QBittorrentError
@@ -6,7 +6,7 @@ from app.models import SubtitleFetchResult, Torrent
 from app.services.subtitle_checker import DEFAULT_QUOTA_PAUSE, NOT_FOUND_RETRY, SubtitleChecker
 from app.services.subtitle_fetch import SubtitleNotFoundError
 
-START = datetime(2026, 10, 20, 12, 0, tzinfo=timezone.utc)
+START = datetime(2026, 10, 20, 12, 0, tzinfo=UTC)
 
 
 class Clock:

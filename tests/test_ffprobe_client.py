@@ -43,8 +43,12 @@ def test_subtitle_streams_parses_ffprobe_json(monkeypatch):
     streams = FfprobeClient().subtitle_streams(VIDEO)
 
     assert streams == [
-        SubtitleStream(index=2, codec="subrip", language="eng", title="English SDH", forced=False, hearing_impaired=True),
-        SubtitleStream(index=3, codec="hdmv_pgs_subtitle", language=None, title=None, forced=False, hearing_impaired=False),
+        SubtitleStream(
+            index=2, codec="subrip", language="eng", title="English SDH", forced=False, hearing_impaired=True
+        ),
+        SubtitleStream(
+            index=3, codec="hdmv_pgs_subtitle", language=None, title=None, forced=False, hearing_impaired=False
+        ),
     ]
 
 

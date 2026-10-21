@@ -1,0 +1,13 @@
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+# Specs are design documents: leave their code samples as written.
+extend-exclude = ["specs"]
+
+[tool.ruff.lint]
+# pycodestyle, pyflakes, import sorting, pyupgrade, bugbear
+select = ["E", "W", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's dependency markers are meant to be used as default arguments.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]

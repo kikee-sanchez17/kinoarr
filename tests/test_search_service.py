@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.models import Release
 from app.services.release_store import ReleaseStore
@@ -21,7 +21,7 @@ def make_release(release_id: str, seeders: int | None) -> Release:
         size=1_000,
         seeders=seeders,
         leechers=None,
-        publish_date=datetime(2020, 1, 1, tzinfo=timezone.utc),
+        publish_date=datetime(2020, 1, 1, tzinfo=UTC),
         info_url=None,
         download_url=f"http://prowlarr:9696/1/download?apikey=secret&link={release_id}",
         magnet_url=None,
