@@ -55,6 +55,7 @@ const elements = {
   showMoreButton: document.getElementById("show-more"),
   downloadsStatus: document.getElementById("downloads-status"),
   downloadsList: document.getElementById("downloads-list"),
+  appVersion: document.getElementById("app-version"),
 };
 
 let latestSearchId = 0;
@@ -506,6 +507,15 @@ function showSubtitleMessage(torrentHash, text, kind) {
 
 // ---------- Start ----------
 
+async function showVersion() {
+  try {
+    const health = await apiRequest("health");
+    elements.appVersion.textContent = `Kinoarr v${health.version}`;
+  } catch {
+    // Keep the plain "Kinoarr": the downloads list already reports connection problems.
+  }
+}
+
 function startDownloadsRefresh() {
   refreshDownloads();
   setInterval(() => {
@@ -529,3 +539,4 @@ elements.searchForm.addEventListener("submit", (event) => {
 });
 elements.showMoreButton.addEventListener("click", showNextPage);
 startDownloadsRefresh();
+showVersion();

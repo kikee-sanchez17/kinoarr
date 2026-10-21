@@ -35,7 +35,8 @@ body {
 }
 
 .page-header,
-main {
+main,
+.page-footer {
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 16px;
@@ -43,6 +44,20 @@ main {
 
 main {
   padding-bottom: 32px;
+}
+
+.page-footer {
+  padding-bottom: 24px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+/* The line sits on the inner text, so it lines up with the content instead of the side padding. */
+.page-footer span {
+  display: block;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
 }
 
 h1 {

@@ -3,7 +3,7 @@ import logging
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.staticfiles import StaticFiles
 
 from app.api import downloads, search
@@ -51,7 +51,7 @@ app.include_router(search.router)
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok"}
+    return {"status": "ok", "version": APP_VERSION}
 
 
 @app.get("/api/config")
@@ -67,6 +67,16 @@ def show_config() -> dict:
     }
 
 
+class RevalidatedStaticFiles(StaticFiles):
+    """Static files the browser may store but must re-check before reuse, so an update is never hidden."""
+
+    def file_response(self, *args, **kwargs) -> Response:
+        # Covers the 304 "not modified" answer too: Starlette builds both in this method.
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 # Mounted last: routes are matched in order, so /health, /api/... and /docs win,
 # and only the remaining paths fall through to the web UI's files.
-app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="web-ui")
+app.mount("/", RevalidatedStaticFiles(directory=STATIC_DIR, html=True), name="web-ui")
