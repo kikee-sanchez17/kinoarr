@@ -15,23 +15,15 @@ class Settings(BaseSettings):
     qbittorrent_username: str = "admin"
     qbittorrent_password: str = ""
 
-    # Jellyfin
-    jellyfin_url: str = "http://host.docker.internal:8096"
-    jellyfin_api_key: str = ""
-
     # Prowlarr (Torznab API)
     prowlarr_url: str = "http://prowlarr:9696"
     prowlarr_api_key: str = ""
 
-    # External APIs
-    tmdb_api_key: str = ""
+    # OpenSubtitles
     opensubtitles_api_key: str = ""
     # Optional: logging in raises the daily download quota.
     opensubtitles_username: str = ""
     opensubtitles_password: str = ""
-
-    # Subtitles: comma-separated list (only "en" for now)
-    subtitle_languages: str = "en"
 
     # Path mapping: the downloads folder as qBittorrent sees it and as Kinoarr
     # sees it. Leave either empty to disable mapping.
@@ -40,10 +32,6 @@ class Settings(BaseSettings):
 
     # Poller
     poll_interval: int = 60
-
-    @property
-    def subtitle_language_list(self) -> list[str]:
-        return [lang.strip() for lang in self.subtitle_languages.split(",") if lang.strip()]
 
 
 @lru_cache

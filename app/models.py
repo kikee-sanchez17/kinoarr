@@ -17,6 +17,7 @@ class Torrent(BaseModel):
     category: str
     tags: list[str]
 
+
 class Release(BaseModel):
     """A Prowlarr search result as Kinoarr's backend sees it (includes download links)."""
 

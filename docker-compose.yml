@@ -8,9 +8,6 @@ services:
     volumes:
       # Same internal path as qBittorrent (/downloads), so no path mapping is needed
       - ${MEDIA_PATH}:/downloads
-    extra_hosts:
-      # Jellyfin runs with network_mode: host
-      - "host.docker.internal:host-gateway"
     networks:
       - proxy-net   # Nginx Proxy Manager reaches kinoarr:8000
       - media-net   # qBittorrent (and Prowlarr) reachable by name

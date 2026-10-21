@@ -14,4 +14,4 @@ Implements [plan.md](plan.md). Written retroactively; all tasks done.
 - [x] 7. Committed (`acefea5`, `426b62c`). This was before the "no commit without approval" rule existed.
 
 ## User actions
-- [ ] Update the local `.env`: rename `QBIT_*` to `QBITTORRENT_*`, replace `DOWNLOADS_PATH` with `QBITTORRENT_DOWNLOADS_PATH=/downloads` and `KINOARR_DOWNLOADS_PATH=<absolute path to dev-media>`.
+- [x] Update the local `.env`: rename `QBIT_*` to `QBITTORRENT_*`, replace `DOWNLOADS_PATH` with `QBITTORRENT_DOWNLOADS_PATH=/downloads` and `KINOARR_DOWNLOADS_PATH=<absolute path to dev-media>`.
