@@ -48,12 +48,20 @@ Done (each feature has its spec in `specs/`):
 - Subtitle download (`specs/subtitle-download/`): OpenSubtitles (search by file hash, then by name), saved as `<video>.en.srt`; `POST /api/downloads/{hash}/subtitles` and a background checker every `POLL_INTERVAL` for finished `kinoarr` torrents (retry state in memory). Optional `OPENSUBTITLES_USERNAME`/`OPENSUBTITLES_PASSWORD` raise the daily quota (20/day on a free account).
 - Tooling: ruff (format and lint, dev-only, configured in `pyproject.toml`).
 - Web UI (`specs/web-ui/`, `specs/web-ui-improvements/`): static HTML/CSS/vanilla JS in `app/static/`, served by FastAPI at `/`. Search, downloads (polled, `kinoarr` tag via `GET /api/downloads?tag=`) and subtitles; results filtered in the browser by indexer, resolution and codec (`resolution`/`video_codec` detected from the title in `app/release_title.py`), 15 at a time with "Show more"; dark Jellyfin-like style. Untrusted text is rendered with `textContent` only.
+- Deployment (`specs/deployment/`): allow-list `.dockerignore` (only `app/` and `requirements.txt` reach Docker); compose runs as `${PUID:-1000}:${PGID:-1000}` and names `ghcr.io/kikee-sanchez17/kinoarr:latest` next to `build: .`. `.github/workflows/publish-image.yml` publishes `X.Y.Z` and `latest` (amd64) only on `vX.Y.Z` tags, and fails if the tag differs from `APP_VERSION`. Values containing `$` go in single quotes in `.env` (Compose interpolates them otherwise).
+- Subtitle matching (`specs/subtitle-matching/`): before OpenSubtitles, an English subtitle shipped inside the torrent folder (checked by its text, forced/SDH skipped) is copied beside the movie as `<video>.en.<ext>` (status `copied_from_torrent`; originals untouched for seeding). OpenSubtitles results are kept only if their movie title/year match the torrent or file name (a hash match once returned another movie). The checker runs without an API key too.
+- Version and caching (`specs/version-and-caching/`): `/health` returns `version`; the UI footer shows it; page files are sent with `Cache-Control: no-cache`.
+
+Release process: bump `APP_VERSION` in `app/config.py` in a "Release X.Y.Z" commit, push, then push the tag `vX.Y.Z`; on the server `git pull && docker compose pull && docker compose up -d`. Pushing needs the user's GitHub credentials (Claude cannot push from its session).
+
+Production (home server, running v0.3.0): qBittorrent and Prowlarr each in their own stack on the external `media-net` network (containers `qbittorrent`, `prowlarr`); Kinoarr on `media-net` and `proxy-net`, behind Nginx Proxy Manager with an access list (LAN + Tailscale). Media mounted at `/downloads` in both qBittorrent and Kinoarr, so no path mapping; `PUID`/`PGID` 1000.
 
 Dev Prowlarr indexers: Internet Archive (for development and tests; only its results are sent to qBittorrent when testing), plus The Pirate Bay and YTS (the user's real sources).
 
-Next, in order:
-1. Deployment to the home server: add a `.dockerignore` (the build context currently includes `.env`, `dev-config` and `dev-media`) and make the compose user configurable with `PUID`/`PGID` (now hardcoded `1000:1000`).
-2. README (document ffprobe/ffmpeg for native installs, PUID/PGID, the OpenSubtitles variables).
+Next:
+1. README (both setups, "everything in one compose" and "separate stacks"; ffprobe/ffmpeg for native installs, PUID/PGID, the OpenSubtitles variables, `$` in `.env` values, the release process and the published image).
+
+Known open case (left on purpose): an English-tagged sidecar shipped by a torrent (`Movie.en.srt`) is trusted by name, even if it only contains an advertisement.
 
 Dev note: the Internet Archive trailer in the dev qBittorrent is stuck at 98% (its `.ogv` stalls); use another Internet Archive download for end-to-end checks that need a finished torrent.
 

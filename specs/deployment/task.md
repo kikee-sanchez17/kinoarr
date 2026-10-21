@@ -33,8 +33,8 @@ Implements [plan.md](plan.md). Tick each task when done.
 - [x] 15. Set the `kinoarr` package to public on GitHub; an anonymous `docker pull ghcr.io/kikee-sanchez17/kinoarr:0.1.0` works.
 
 ## On the home server (done by the user, legal content only)
-- [ ] 16. External networks exist; qBittorrent is on `media-net` as `qbittorrent`; note its media mount path and `PUID`/`PGID` for `.env`.
-- [ ] 17. Install Prowlarr in its own stack on `media-net` (container `prowlarr`, same `PUID`/`PGID`), add the indexers, copy its API key.
-- [ ] 18. Clone the repo, write `.env` from `.env.example`, `docker compose pull && docker compose up -d`, container `healthy`.
-- [ ] 19. Nginx Proxy Manager proxy host to `kinoarr:8000` with the access list; works from the LAN and over Tailscale, blocked elsewhere.
-- [ ] 20. End-to-end with an **Internet Archive** release: search, download, progress, subtitle saved with `PUID:PGID` ownership, visible in Jellyfin after a scan.
+- [x] 16. External networks exist; qBittorrent is on `media-net` as `qbittorrent`; note its media mount path and `PUID`/`PGID` for `.env`.
+- [x] 17. Install Prowlarr in its own stack on `media-net` (container `prowlarr`, same `PUID`/`PGID`), add the indexers, copy its API key.
+- [x] 18. Clone the repo, write `.env` from `.env.example`, `docker compose pull && docker compose up -d`, container `healthy`.
+- [x] 19. Nginx Proxy Manager proxy host to `kinoarr:8000` with the access list; works from the LAN and over Tailscale, blocked elsewhere.
+- [x] 20. End-to-end with an **Internet Archive** release: search, download, progress, subtitle saved with `PUID:PGID` ownership, visible in Jellyfin after a scan.

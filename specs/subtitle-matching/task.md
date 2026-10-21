@@ -28,5 +28,5 @@ Implements [plan.md](plan.md). Tick each task when done.
 - [x] 14. Commit only when the user says so.
 
 ## After release (done by the user)
-- [ ] 15. Release a new version (bump `APP_VERSION`, tag), `docker compose pull && docker compose up -d` on the server.
-- [ ] 16. Delete the wrong `…YIFY.en.srt`, press "Get subtitles" on *The Exorcism of Emily Rose*: copied from the torrent, same text as the original `.srt`, English in Jellyfin.
+- [x] 15. Release a new version (bump `APP_VERSION`, tag), `docker compose pull && docker compose up -d` on the server.
+- [x] 16. Delete the wrong `…YIFY.en.srt`, press "Get subtitles" on *The Exorcism of Emily Rose*: copied from the torrent, same text as the original `.srt`, English in Jellyfin.
