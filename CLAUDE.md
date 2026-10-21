@@ -46,12 +46,14 @@ Done (each feature has its spec in `specs/`):
 - Send to qBittorrent (`specs/send-to-qbittorrent/`): `POST /api/downloads` with a result ID. Kinoarr opens the Prowlarr link itself and gives qBittorrent the `.torrent` file or magnet URI; torrents get the tag `kinoarr`; qBittorrent's default save folder is used.
 - Subtitle detection (`specs/subtitle-detection/`): `GET /api/downloads/{hash}/subtitles` checks the torrent's largest video for English subtitles (embedded via ffprobe, sidecars `srt`/`ass`/`ssa`/`vtt` beside the video); forced, SDH and untagged do not count.
 - Subtitle download (`specs/subtitle-download/`): OpenSubtitles (search by file hash, then by name), saved as `<video>.en.srt`; `POST /api/downloads/{hash}/subtitles` and a background checker every `POLL_INTERVAL` for finished `kinoarr` torrents (retry state in memory). Optional `OPENSUBTITLES_USERNAME`/`OPENSUBTITLES_PASSWORD` raise the daily quota (20/day on a free account).
+- Tooling: ruff (format and lint, dev-only, configured in `pyproject.toml`).
+- Web UI (`specs/web-ui/`, `specs/web-ui-improvements/`): static HTML/CSS/vanilla JS in `app/static/`, served by FastAPI at `/`. Search, downloads (polled, `kinoarr` tag via `GET /api/downloads?tag=`) and subtitles; results filtered in the browser by indexer, resolution and codec (`resolution`/`video_codec` detected from the title in `app/release_title.py`), 15 at a time with "Show more"; dark Jellyfin-like style. Untrusted text is rendered with `textContent` only.
 
 Dev Prowlarr indexers: Internet Archive (for development and tests; only its results are sent to qBittorrent when testing), plus The Pirate Bay and YTS (the user's real sources).
 
 Next, in order:
-1. Simple web UI: search box, results list, download status.
-2. Deployment to the home server, then README (document ffprobe/ffmpeg for native installs, PUID/PGID, the OpenSubtitles variables).
+1. Deployment to the home server: add a `.dockerignore` (the build context currently includes `.env`, `dev-config` and `dev-media`) and make the compose user configurable with `PUID`/`PGID` (now hardcoded `1000:1000`).
+2. README (document ffprobe/ffmpeg for native installs, PUID/PGID, the OpenSubtitles variables).
 
 Dev note: the Internet Archive trailer in the dev qBittorrent is stuck at 98% (its `.ogv` stalls); use another Internet Archive download for end-to-end checks that need a finished torrent.
 
