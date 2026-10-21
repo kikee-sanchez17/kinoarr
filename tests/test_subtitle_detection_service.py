@@ -110,3 +110,18 @@ def test_torrent_without_video_raises_video_not_found(tmp_path):
 
     with pytest.raises(VideoNotFoundError):
         service_for(make_torrent(tmp_path)).detect(HASH)
+
+
+def test_bundled_subtitles_come_from_the_torrent_folder(movie_folder):
+    (movie_folder / "Subs").mkdir()
+    (movie_folder / "Subs" / "English.srt").write_text("1")
+    (movie_folder.parent / "Other movie.srt").write_text("1")
+
+    bundled = service_for(make_torrent(movie_folder)).bundled_subtitles(HASH)
+
+    assert bundled == [movie_folder / "Subs" / "English.srt"]
+
+
+def test_bundled_subtitles_of_missing_path_point_at_path_mapping(tmp_path):
+    with pytest.raises(DownloadPathMissingError):
+        service_for(make_torrent(tmp_path / "gone")).bundled_subtitles(HASH)

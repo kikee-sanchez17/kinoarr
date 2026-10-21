@@ -491,6 +491,9 @@ function describeSubtitleResult(result) {
   if (result.status === "already_present") {
     return "Already has English subtitles";
   }
+  if (result.status === "copied_from_torrent") {
+    return `Subtitle copied from the torrent: ${result.subtitle_file}`;
+  }
   return `Subtitle saved: ${result.subtitle_file}`;
 }
 

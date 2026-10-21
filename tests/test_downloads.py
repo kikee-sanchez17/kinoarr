@@ -198,13 +198,14 @@ def test_detect_subtitles_errors(error, expected_status):
 
 
 class FakeFetchService:
-    def __init__(self, error=None):
+    def __init__(self, error=None, status="downloaded"):
         self._error = error
+        self._status = status
 
     def fetch(self, torrent_hash: str) -> SubtitleFetchResult:
         if self._error:
             raise self._error
-        return SubtitleFetchResult(torrent_hash=torrent_hash, status="downloaded", subtitle_file="Movie.en.srt")
+        return SubtitleFetchResult(torrent_hash=torrent_hash, status=self._status, subtitle_file="Movie.en.srt")
 
 
 def fetch_client_with(fake: FakeFetchService) -> TestClient:
@@ -217,6 +218,13 @@ def test_fetch_subtitle_returns_result():
 
     assert r.status_code == 200
     assert r.json() == {"torrent_hash": "abc", "status": "downloaded", "subtitle_file": "Movie.en.srt"}
+
+
+def test_fetch_subtitle_reports_a_copy_from_the_torrent():
+    r = fetch_client_with(FakeFetchService(status="copied_from_torrent")).post("/api/downloads/abc/subtitles")
+
+    assert r.status_code == 200
+    assert r.json()["status"] == "copied_from_torrent"
 
 
 @pytest.mark.parametrize(

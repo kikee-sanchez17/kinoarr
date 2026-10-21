@@ -198,3 +198,17 @@ def test_failed_file_download_raises():
 
     with pytest.raises(OpenSubtitlesError, match="HTTP 404"):
         anonymous_client().download(1)
+
+
+@respx.mock
+def test_search_results_carry_the_movie_they_belong_to():
+    with_movie = make_result(
+        1, feature_details={"title": "The Exorcism of Emily Rose", "year": 2005, "imdb_id": 404032}
+    )
+    without_movie = make_result(2)
+    respx.get(f"{API}/subtitles").mock(return_value=httpx.Response(200, json={"data": [with_movie, without_movie]}))
+
+    first, second = anonymous_client().search_english(query="the exorcism of emily rose")
+
+    assert (first.movie_title, first.movie_year) == ("The Exorcism of Emily Rose", 2005)
+    assert (second.movie_title, second.movie_year) == (None, None)

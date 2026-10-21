@@ -8,7 +8,7 @@ from app.clients.qbittorrent import QBittorrentClient, QBittorrentError
 from app.models import Torrent
 from app.services.downloads import KINOARR_TAG
 from app.services.subtitle_detection import VideoNotFoundError
-from app.services.subtitle_fetch import SubtitleFetchService, SubtitleNotFoundError
+from app.services.subtitle_fetch import SubtitleDownloadsDisabledError, SubtitleFetchService, SubtitleNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +73,7 @@ class SubtitleChecker:
             self._fetch_service.fetch(torrent.hash)
             self._done.add(torrent.hash)
             self._retry_at.pop(torrent.hash, None)
-        except (SubtitleNotFoundError, VideoNotFoundError) as exc:
+        except (SubtitleNotFoundError, SubtitleDownloadsDisabledError, VideoNotFoundError) as exc:
             self._retry_at[torrent.hash] = now + NOT_FOUND_RETRY
             logger.info("%s; retrying after %s", exc, self._retry_at[torrent.hash])
         except QuotaExceededError:

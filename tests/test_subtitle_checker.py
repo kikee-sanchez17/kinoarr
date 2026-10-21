@@ -4,7 +4,7 @@ from app.clients.opensubtitles import OpenSubtitlesError, QuotaExceededError
 from app.clients.qbittorrent import QBittorrentError
 from app.models import SubtitleFetchResult, Torrent
 from app.services.subtitle_checker import DEFAULT_QUOTA_PAUSE, NOT_FOUND_RETRY, SubtitleChecker
-from app.services.subtitle_fetch import SubtitleNotFoundError
+from app.services.subtitle_fetch import SubtitleDownloadsDisabledError, SubtitleNotFoundError
 
 START = datetime(2026, 10, 20, 12, 0, tzinfo=UTC)
 
@@ -143,3 +143,17 @@ def test_qbittorrent_down_skips_the_round():
     checker.check_once()
 
     assert fetch_service.fetched == []
+
+
+def test_without_opensubtitles_a_torrent_without_its_own_subtitle_is_retried_after_a_day(caplog):
+    clock = Clock()
+    fetch_service = FakeFetchService({"a": SubtitleDownloadsDisabledError("set OPENSUBTITLES_API_KEY")})
+    checker = make_checker([make_torrent("a")], fetch_service, clock)
+
+    checker.check_once()
+    checker.check_once()
+    clock.advance(NOT_FOUND_RETRY)
+    checker.check_once()
+
+    assert fetch_service.fetched == ["a", "a"]
+    assert not any(record.exc_info for record in caplog.records)

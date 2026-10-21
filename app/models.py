@@ -107,9 +107,11 @@ class SubtitleCandidate(BaseModel):
     file_name: str
     download_count: int
     hash_match: bool  # made for this exact release, so its timing fits
+    movie_title: str | None = None  # the movie OpenSubtitles files it under
+    movie_year: int | None = None
 
 
 class SubtitleFetchResult(BaseModel):
     torrent_hash: str
-    status: Literal["downloaded", "already_present"]
-    subtitle_file: str | None  # name of the saved .srt
+    status: Literal["downloaded", "already_present", "copied_from_torrent"]
+    subtitle_file: str | None  # name of the saved or copied subtitle

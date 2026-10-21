@@ -29,8 +29,8 @@ Implements [plan.md](plan.md). Tick each task when done.
 - [x] 13. Commit only when the user says so.
 
 ## Release (done by the user)
-- [ ] 14. Push the commit and the tag `v0.1.0`; the workflow publishes `0.1.0` and `latest`.
-- [ ] 15. Set the `kinoarr` package to public on GitHub; an anonymous `docker pull ghcr.io/kikee-sanchez17/kinoarr:0.1.0` works.
+- [x] 14. Push the commit and the tag `v0.1.0`; the workflow publishes `0.1.0` and `latest`.
+- [x] 15. Set the `kinoarr` package to public on GitHub; an anonymous `docker pull ghcr.io/kikee-sanchez17/kinoarr:0.1.0` works.
 
 ## On the home server (done by the user, legal content only)
 - [ ] 16. External networks exist; qBittorrent is on `media-net` as `qbittorrent`; note its media mount path and `PUID`/`PGID` for `.env`.

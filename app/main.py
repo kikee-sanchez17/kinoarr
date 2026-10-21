@@ -23,17 +23,15 @@ STATIC_DIR = Path(__file__).parent / "static"
 async def lifespan(app: FastAPI):
     checker_task = _start_subtitle_checker()
     yield
-    if checker_task:
-        checker_task.cancel()
-        with suppress(asyncio.CancelledError):
-            await checker_task
+    checker_task.cancel()
+    with suppress(asyncio.CancelledError):
+        await checker_task
 
 
-def _start_subtitle_checker() -> asyncio.Task | None:
+def _start_subtitle_checker() -> asyncio.Task:
     settings = get_settings()
     if not settings.opensubtitles_api_key:
-        logger.warning("OPENSUBTITLES_API_KEY is not set: the subtitle checker is disabled")
-        return None
+        logger.info("OPENSUBTITLES_API_KEY is not set: only subtitles included in torrents will be used")
     logger.info("Subtitle checker started (every %s s)", settings.poll_interval)
     return asyncio.create_task(run_periodically(get_subtitle_checker(), settings.poll_interval))
 

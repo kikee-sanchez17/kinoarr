@@ -5,12 +5,17 @@ import pytest
 from app.models import SubtitleCandidate, SubtitleStream
 from app.subtitles import (
     best_candidate,
+    bundled_subtitles,
     english_sidecar_path,
     english_sidecars,
     find_main_video,
     is_english_embedded,
     is_english_sidecar,
+    looks_english,
+    matches_movie,
+    read_subtitle_text,
 )
+from tests.subtitle_samples import ENGLISH_LINES, ENGLISH_SRT, FRENCH_SRT, SPANISH_SRT, to_srt
 
 
 def make_stream(language: str | None = "eng", title: str | None = None, forced=False, hearing_impaired=False):
@@ -137,3 +142,100 @@ def test_best_candidate_without_hash_match_picks_most_downloaded():
 
 def test_best_candidate_of_nothing_is_none():
     assert best_candidate([]) is None
+
+
+def test_english_sidecar_path_keeps_another_format():
+    assert english_sidecar_path(Path("/m/Movie.mkv"), ".ass") == Path("/m/Movie.en.ass")
+
+
+def test_bundled_subtitles_puts_english_names_first_then_larger_files(tmp_path):
+    write_file(tmp_path / "Movie.mkv")
+    untagged = write_file(tmp_path / "Movie.srt", size=50)
+    english = write_file(tmp_path / "Subs" / "2_English.srt", size=10)
+    spanish = write_file(tmp_path / "Subs" / "4_Spanish.srt", size=80)
+    write_file(tmp_path / "Subs" / "3_English.SDH.srt", size=90)
+    write_file(tmp_path / "Movie.en.forced.srt", size=5)
+    write_file(tmp_path / "notes.txt")
+
+    assert bundled_subtitles(tmp_path) == [english, spanish, untagged]
+
+
+def test_single_file_torrent_has_no_bundled_subtitles(tmp_path):
+    movie = write_file(tmp_path / "Movie.mkv")
+    write_file(tmp_path / "Other movie.srt")
+
+    assert bundled_subtitles(movie) == []
+
+
+def test_english_dialogue_looks_english():
+    assert looks_english(ENGLISH_SRT)
+
+
+@pytest.mark.parametrize("subtitle_text", [SPANISH_SRT, FRENCH_SRT])
+def test_other_languages_do_not_look_english(subtitle_text):
+    assert not looks_english(subtitle_text)
+
+
+@pytest.mark.parametrize(
+    "subtitle_text",
+    [
+        to_srt(ENGLISH_LINES[:3]),  # too little text to judge
+        "1\n00:00:01,000 --> 00:00:02,000\n\n" * 200,  # only numbers and timings
+        "",
+    ],
+)
+def test_too_little_text_is_not_judged_english(subtitle_text):
+    assert not looks_english(subtitle_text)
+
+
+@pytest.mark.parametrize(
+    ("content", "expected"),
+    [
+        ("Don't go — café".encode("utf-8-sig"), "Don't go — café"),
+        ("Don't go — café".encode("utf-16"), "Don't go — café"),
+        ("Don't go café".encode("cp1252"), "Don't go café"),
+    ],
+)
+def test_read_subtitle_text_handles_common_encodings(tmp_path, content, expected):
+    path = tmp_path / "Movie.srt"
+    path.write_bytes(content)
+
+    assert read_subtitle_text(path) == expected
+
+
+EMILY_ROSE_TORRENT = "The Exorcism of Emily Rose UNRATED (2005) [1080p]"
+EMILY_ROSE_VIDEO = "The.Exorcism.of.Emily.Rose.UNRATED.2005.1080p.BrRip.x264.BOKUTOX.YIFY"
+
+
+@pytest.mark.parametrize(
+    ("title", "year", "names"),
+    [
+        ("The Exorcism of Emily Rose", 2005, [EMILY_ROSE_TORRENT, EMILY_ROSE_VIDEO]),
+        ("The Exorcism of Emily Rose", 2005, [EMILY_ROSE_VIDEO]),
+        ("The Exorcism of Emily Rose", 2005, ["Exorcism of Emily Rose 2005 720p"]),  # name without "The"
+        ("Amélie", 2001, ["Amelie.2001.1080p.BluRay"]),
+        ("Fast & Furious", 2009, ["Fast.and.Furious.2009.720p"]),
+        ("Wallace &amp; Gromit: The Curse of the Were-Rabbit", 2005, ["Wallace & Gromit The Curse of the Were-Rabbit"]),
+        ("Night of the Living Dead", 1968, ["Night of the Living Dead"]),  # no year in the name
+        ("Night of the Living Dead", None, ["Night of the Living Dead (1968)"]),
+        ("1917", 2019, ["1917 (2019) [1080p]"]),
+    ],
+)
+def test_matching_movies(title, year, names):
+    assert matches_movie(title, year, names)
+
+
+@pytest.mark.parametrize(
+    ("title", "year", "names"),
+    [
+        ("Before I Fall", 2017, [EMILY_ROSE_TORRENT, EMILY_ROSE_VIDEO]),
+        ("The Exorcism of God", 2021, [EMILY_ROSE_TORRENT, EMILY_ROSE_VIDEO]),
+        ("The Exorcism of Emily Rose", 2004, [EMILY_ROSE_TORRENT]),  # same title, another year
+        ("Night of the Living Dead", 1990, ["Night of the Living Dead (1968)"]),
+        ("Rose", 2005, ["Rosemary 2005"]),  # whole words only
+        (None, 2005, [EMILY_ROSE_TORRENT]),
+        ("", 2005, [EMILY_ROSE_TORRENT]),
+    ],
+)
+def test_other_movies_do_not_match(title, year, names):
+    assert not matches_movie(title, year, names)

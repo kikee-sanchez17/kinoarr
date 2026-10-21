@@ -3,7 +3,7 @@ from pathlib import Path
 from app.clients.ffprobe import FfprobeClient
 from app.clients.qbittorrent import QBittorrentClient
 from app.models import FoundSubtitle, SubtitleReport, SubtitleStream, Torrent
-from app.subtitles import english_sidecars, find_main_video, is_english_embedded
+from app.subtitles import bundled_subtitles, english_sidecars, find_main_video, is_english_embedded
 
 FINISHED_PROGRESS = 1.0
 
@@ -48,6 +48,10 @@ class SubtitleDetectionService:
             english_subtitles=found,
         )
 
+    def bundled_subtitles(self, torrent_hash: str) -> list[Path]:
+        """Subtitle files shipped inside the torrent, most likely English first."""
+        return bundled_subtitles(_existing_content_path(self._finished_torrent(torrent_hash)))
+
     def _finished_torrent(self, torrent_hash: str) -> Torrent:
         torrent = self._qbittorrent_client.get_torrent(torrent_hash)
         if torrent is None:
@@ -57,14 +61,17 @@ class SubtitleDetectionService:
         return torrent
 
 
-def _main_video_of(torrent: Torrent) -> Path:
+def _existing_content_path(torrent: Torrent) -> Path:
     content_path = Path(torrent.content_path)
     if not content_path.exists():
         raise DownloadPathMissingError(
             f"{content_path} does not exist for Kinoarr: check QBITTORRENT_DOWNLOADS_PATH and KINOARR_DOWNLOADS_PATH"
         )
+    return content_path
 
-    video_path = find_main_video(content_path)
+
+def _main_video_of(torrent: Torrent) -> Path:
+    video_path = find_main_video(_existing_content_path(torrent))
     if video_path is None:
         raise VideoNotFoundError(f"Torrent {torrent.name!r} contains no video file")
     return video_path

@@ -153,9 +153,12 @@ def _is_usable(attributes: dict[str, Any]) -> bool:
 
 def _to_candidate(attributes: dict[str, Any]) -> SubtitleCandidate:
     [subtitle_file] = attributes["files"]
+    movie = attributes.get("feature_details") or {}
     return SubtitleCandidate(
         file_id=subtitle_file["file_id"],
         file_name=subtitle_file.get("file_name") or str(subtitle_file["file_id"]),
         download_count=attributes.get("download_count") or 0,
         hash_match=bool(attributes.get("moviehash_match")),
+        movie_title=movie.get("title"),
+        movie_year=movie.get("year"),
     )
