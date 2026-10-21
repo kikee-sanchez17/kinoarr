@@ -13,10 +13,10 @@ class FakeProwlarr:
         return self._releases
 
 
-def make_release(release_id: str, seeders: int | None) -> Release:
+def make_release(release_id: str, seeders: int | None, title: str | None = None) -> Release:
     return Release(
         id=release_id,
-        title=f"Movie {release_id}",
+        title=title or f"Movie {release_id}",
         indexer="Internet Archive",
         size=1_000,
         seeders=seeders,
@@ -54,3 +54,16 @@ def test_results_have_no_download_links():
 
     assert "download_url" not in result.model_dump()
     assert "magnet_url" not in result.model_dump()
+
+
+def test_results_carry_resolution_and_codec_from_their_titles():
+    releases = [
+        make_release("detailed", 5, title="Night.of.the.Living.Dead.1968.1080p.BluRay.x265-GROUP"),
+        make_release("plain", 3, title="Night of the Living Dead (1968)"),
+    ]
+    service = SearchService(FakeProwlarr(releases), ReleaseStore())
+
+    detailed, plain = service.search_movies("night")
+
+    assert (detailed.resolution, detailed.video_codec) == ("1080p", "H.265")
+    assert (plain.resolution, plain.video_codec) == (None, None)

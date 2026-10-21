@@ -3,6 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.release_title import Resolution, VideoCodec
+
 
 class Torrent(BaseModel):
     """Simplified view of a qBittorrent torrent."""
@@ -44,6 +46,9 @@ class SearchResult(BaseModel):
     leechers: int | None
     publish_date: datetime
     info_url: str | None
+    # Best guesses from the title; None when the title does not say.
+    resolution: Resolution | None
+    video_codec: VideoCodec | None
 
 
 class TorrentFile(BaseModel):

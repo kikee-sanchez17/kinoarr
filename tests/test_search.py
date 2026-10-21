@@ -29,6 +29,8 @@ def make_result(title: str) -> SearchResult:
         leechers=1,
         publish_date=datetime(2020, 1, 1, tzinfo=UTC),
         info_url="https://archive.org/details/night",
+        resolution="1080p",
+        video_codec=None,
     )
 
 
@@ -49,6 +51,8 @@ def test_search_returns_results_without_download_links():
     assert r.status_code == 200
     [result] = r.json()
     assert result["title"] == "Night of the Living Dead"
+    assert result["resolution"] == "1080p"
+    assert result["video_codec"] is None
     assert "download_url" not in result
     assert "magnet_url" not in result
     assert "apikey" not in r.text

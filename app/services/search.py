@@ -1,5 +1,6 @@
 from app.clients.prowlarr import ProwlarrClient
 from app.models import Release, SearchResult
+from app.release_title import detect_resolution, detect_video_codec
 from app.services.release_store import ReleaseStore
 
 DOWNLOAD_LINK_FIELDS = {"download_url", "magnet_url"}
@@ -15,7 +16,7 @@ class SearchService:
     def search_movies(self, query: str) -> list[SearchResult]:
         releases = sorted(self._prowlarr_client.search_movies(query), key=_most_seeders_first)
         self._release_store.add(releases)
-        return [_without_download_links(release) for release in releases]
+        return [_to_search_result(release) for release in releases]
 
 
 def _most_seeders_first(release: Release) -> tuple[bool, int]:
@@ -23,5 +24,9 @@ def _most_seeders_first(release: Release) -> tuple[bool, int]:
     return (release.seeders is None, -(release.seeders or 0))
 
 
-def _without_download_links(release: Release) -> SearchResult:
-    return SearchResult(**release.model_dump(exclude=DOWNLOAD_LINK_FIELDS))
+def _to_search_result(release: Release) -> SearchResult:
+    return SearchResult(
+        **release.model_dump(exclude=DOWNLOAD_LINK_FIELDS),
+        resolution=detect_resolution(release.title),
+        video_codec=detect_video_codec(release.title),
+    )

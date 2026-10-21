@@ -3,13 +3,22 @@
 // Text from indexers and qBittorrent is untrusted: it is only ever set through
 // textContent (or append with a string), never as HTML.
 
-const RESULTS_PAGE_SIZE = 50;
+const RESULTS_PAGE_SIZE = 15;
 const DOWNLOADS_REFRESH_MS = 5000;
 const KINOARR_TAG = "kinoarr";
 const SIZE_UNITS = ["B", "KB", "MB", "GB", "TB"];
 const BYTES_PER_UNIT = 1024;
 const SAFE_LINK_PROTOCOLS = ["http:", "https:"];
 const MISSING_VALUE = "–";
+const UNKNOWN_LABEL = "Unknown";
+
+// One row of filter buttons per entry. `order` lists the values in display order
+// (null = not named in the title); without it, values with the most results come first.
+const FILTERS = [
+  { key: "indexer", label: "Indexer" },
+  { key: "resolution", label: "Resolution", order: ["2160p", "1080p", "720p", "SD", null] },
+  { key: "video_codec", label: "Codec", order: ["H.265", "H.264", "AV1", "XviD/DivX", null] },
+];
 
 const STATE_LABELS = {
   downloading: "Downloading",
@@ -38,7 +47,9 @@ const STATE_LABELS = {
 const elements = {
   searchForm: document.getElementById("search-form"),
   searchQuery: document.getElementById("search-query"),
-  searchStatus: document.getElementById("search-status"),
+  resultsSection: document.getElementById("results-section"),
+  resultFilters: document.getElementById("result-filters"),
+  resultsStatus: document.getElementById("results-status"),
   resultsTable: document.getElementById("results-table"),
   resultsBody: document.getElementById("results-body"),
   showMoreButton: document.getElementById("show-more"),
@@ -47,9 +58,14 @@ const elements = {
 };
 
 let latestSearchId = 0;
-let resultsNotShown = [];
+let allResults = []; // the last search, most seeders first
+let shownResultsCount = 0;
+// Filter key -> chosen value; a missing key means "All". Kept across searches during the visit.
+const selectedValues = new Map();
 let downloadsRefreshInFlight = false;
 let downloadsRefreshPending = false;
+// Downloads already on screen once, so only new ones fade in.
+const knownDownloadHashes = new Set();
 // Kept by torrent hash, so the periodic re-render of the list does not lose them.
 const subtitleMessages = new Map();
 const subtitleRequestsInFlight = new Set();
@@ -108,6 +124,11 @@ function formatCount(count) {
   return count === null ? MISSING_VALUE : String(count);
 }
 
+function formatQuality(result) {
+  const parts = [result.resolution, result.video_codec].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : MISSING_VALUE;
+}
+
 function describeState(state) {
   return STATE_LABELS[state] ?? state;
 }
@@ -126,6 +147,10 @@ function safeLink(url) {
 function progressPercent(progress) {
   // Rounded down, so an unfinished download never shows 100%.
   return Math.floor(progress * 100);
+}
+
+function plural(count, word) {
+  return count === 1 ? word : `${word}s`;
 }
 
 // ---------- DOM helpers ----------
@@ -147,9 +172,10 @@ function createButton(text, className) {
   return button;
 }
 
-function setStatus(element, text, isError = false) {
+// kind: "info", "busy" (shows a spinner), "success" or "error".
+function setStatus(element, text, kind = "info") {
   element.textContent = text;
-  element.classList.toggle("error", isError);
+  element.dataset.kind = kind;
 }
 
 // ---------- Search ----------
@@ -158,7 +184,8 @@ async function searchReleases(query) {
   latestSearchId += 1;
   const searchId = latestSearchId;
   clearResults();
-  setStatus(elements.searchStatus, "Searching…");
+  elements.resultsSection.hidden = false;
+  setStatus(elements.resultsStatus, "Searching…", "busy");
   try {
     const results = await apiRequest(`api/search?${new URLSearchParams({ query })}`);
     if (searchId === latestSearchId) {
@@ -166,58 +193,159 @@ async function searchReleases(query) {
     }
   } catch (error) {
     if (searchId === latestSearchId) {
-      setStatus(elements.searchStatus, error.message, true);
+      setStatus(elements.resultsStatus, error.message, "error");
     }
   }
 }
 
 function clearResults() {
+  allResults = [];
+  elements.resultFilters.hidden = true;
   elements.resultsBody.replaceChildren();
   elements.resultsTable.hidden = true;
   elements.showMoreButton.hidden = true;
-  resultsNotShown = [];
 }
 
 function renderResults(results) {
-  if (results.length === 0) {
-    setStatus(elements.searchStatus, "No results");
-    return;
+  allResults = results;
+  forgetSelectionsMissingFrom(results);
+  renderFilters();
+  showFirstPage();
+}
+
+// ---------- Filters ----------
+
+function forgetSelectionsMissingFrom(results) {
+  for (const [key, value] of selectedValues) {
+    if (!results.some((result) => result[key] === value)) {
+      selectedValues.delete(key);
+    }
   }
-  setStatus(elements.searchStatus, results.length === 1 ? "1 result" : `${results.length} results`);
-  elements.resultsTable.hidden = false;
-  appendResults(results.slice(0, RESULTS_PAGE_SIZE));
-  resultsNotShown = results.slice(RESULTS_PAGE_SIZE);
-  elements.showMoreButton.textContent = `Show ${resultsNotShown.length} more`;
-  elements.showMoreButton.hidden = resultsNotShown.length === 0;
 }
 
-function showMoreResults() {
-  appendResults(resultsNotShown);
-  resultsNotShown = [];
-  elements.showMoreButton.hidden = true;
+function countValues(results, filter) {
+  const counts = new Map();
+  for (const result of results) {
+    const value = result[filter.key];
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+  const entries = [...counts.entries()];
+  if (filter.order) {
+    return entries.sort(([valueA], [valueB]) => filter.order.indexOf(valueA) - filter.order.indexOf(valueB));
+  }
+  return entries.sort(([valueA, countA], [valueB, countB]) => countB - countA || valueA.localeCompare(valueB));
 }
 
-function appendResults(results) {
-  elements.resultsBody.append(...results.map(createResultRow));
+function filteredResults() {
+  return allResults.filter((result) =>
+    [...selectedValues].every(([key, value]) => result[key] === value),
+  );
+}
+
+function renderFilters() {
+  const rows = FILTERS.map(createFilterRow).filter((row) => row !== null);
+  elements.resultFilters.replaceChildren(...rows);
+  elements.resultFilters.hidden = rows.length === 0;
+}
+
+function createFilterRow(filter) {
+  const valueCounts = countValues(allResults, filter);
+  if (valueCounts.length < 2) {
+    return null;
+  }
+  const row = createElement("div", { className: "filter-row" });
+  row.setAttribute("role", "group");
+  row.setAttribute("aria-label", `Filter by ${filter.label.toLowerCase()}`);
+
+  const isAllSelected = !selectedValues.has(filter.key);
+  row.append(
+    createElement("span", { className: "filter-label", text: filter.label }),
+    createFilterButton("All", allResults.length, isAllSelected, () => clearFilter(filter.key)),
+    ...valueCounts.map(([value, count]) =>
+      createFilterButton(
+        value ?? UNKNOWN_LABEL,
+        count,
+        !isAllSelected && selectedValues.get(filter.key) === value,
+        () => selectFilterValue(filter.key, value),
+      ),
+    ),
+  );
+  return row;
+}
+
+function createFilterButton(label, count, isSelected, onClick) {
+  const button = createButton(undefined, "pill");
+  button.setAttribute("aria-pressed", String(isSelected));
+  button.append(label, createElement("span", { className: "pill-count", text: String(count) }));
+  button.addEventListener("click", onClick);
+  return button;
+}
+
+// value may be null ("Unknown"), which is a real choice, unlike "All".
+function selectFilterValue(key, value) {
+  selectedValues.set(key, value);
+  applyFilters();
+}
+
+function clearFilter(key) {
+  selectedValues.delete(key);
+  applyFilters();
+}
+
+function applyFilters() {
+  renderFilters();
+  showFirstPage();
+}
+
+// ---------- Results table ----------
+
+function showFirstPage() {
+  elements.resultsBody.replaceChildren();
+  shownResultsCount = 0;
+  showNextPage();
+}
+
+function showNextPage() {
+  const matching = filteredResults();
+  const nextResults = matching.slice(shownResultsCount, shownResultsCount + RESULTS_PAGE_SIZE);
+  elements.resultsBody.append(...nextResults.map(createResultRow));
+  shownResultsCount += nextResults.length;
+
+  const remaining = matching.length - shownResultsCount;
+  elements.resultsTable.hidden = matching.length === 0;
+  elements.showMoreButton.hidden = remaining === 0;
+  elements.showMoreButton.textContent = `Show ${Math.min(remaining, RESULTS_PAGE_SIZE)} more`;
+  setStatus(elements.resultsStatus, describeShownResults(matching.length));
+}
+
+function describeShownResults(matchingCount) {
+  if (allResults.length === 0) {
+    return "No results";
+  }
+  if (matchingCount === 0) {
+    return "No results match these filters";
+  }
+  return `Showing ${shownResultsCount} of ${matchingCount} ${plural(matchingCount, "result")}`;
 }
 
 function createResultRow(result) {
   const row = document.createElement("tr");
   row.append(
     createCell("Title", createReleaseTitle(result), "title-cell"),
-    createCell("Indexer", result.indexer),
-    createCell("Size", formatSize(result.size), "numeric"),
-    createCell("Seeders", formatCount(result.seeders), "numeric"),
-    createCell("Leechers", formatCount(result.leechers), "numeric"),
-    createCell("Published", formatDate(result.publish_date)),
-    createCell("", createDownloadControls(result.id)),
+    createCell("Indexer", result.indexer, "detail-cell"),
+    createCell("Quality", formatQuality(result), "detail-cell"),
+    createCell("Size", formatSize(result.size), "detail-cell numeric"),
+    createCell("Seeders", formatCount(result.seeders), "detail-cell numeric"),
+    createCell("Leechers", formatCount(result.leechers), "detail-cell numeric"),
+    createCell("Published", formatDate(result.publish_date), "detail-cell"),
+    createCell("", createDownloadControls(result.id), "action-cell"),
   );
   return row;
 }
 
 function createCell(label, content, className) {
   const cell = createElement("td", { className });
-  // Shown as a caption when narrow screens turn each row into a card.
+  // Shown as a caption on detail cells when narrow screens turn each row into a card.
   cell.dataset.label = label;
   cell.append(content);
   return cell;
@@ -246,14 +374,14 @@ function createDownloadControls(releaseId) {
 
 async function startDownload(releaseId, button, message) {
   button.disabled = true;
-  setStatus(message, "Adding…");
+  setStatus(message, "Adding…", "busy");
   try {
     await postJson("api/downloads", { release_id: releaseId });
-    setStatus(message, "Added");
+    setStatus(message, "Added", "success");
     refreshDownloads();
   } catch (error) {
     button.disabled = false;
-    setStatus(message, error.message, true);
+    setStatus(message, error.message, "error");
   }
 }
 
@@ -271,7 +399,7 @@ async function refreshDownloads() {
     renderDownloads(torrents);
   } catch (error) {
     elements.downloadsList.replaceChildren();
-    setStatus(elements.downloadsStatus, error.message, true);
+    setStatus(elements.downloadsStatus, error.message, "error");
   } finally {
     downloadsRefreshInFlight = false;
   }
@@ -287,8 +415,14 @@ function renderDownloads(torrents) {
 }
 
 function createDownloadItem(torrent) {
+  const isFinished = torrent.progress >= 1;
   const item = createElement("li", { className: "download" });
   item.dataset.hash = torrent.hash;
+  item.classList.toggle("is-finished", isFinished);
+  if (!knownDownloadHashes.has(torrent.hash)) {
+    item.classList.add("is-new");
+    knownDownloadHashes.add(torrent.hash);
+  }
 
   const header = createElement("div", { className: "download-header" });
   header.append(
@@ -301,7 +435,7 @@ function createDownloadItem(torrent) {
   });
 
   item.append(header, createProgressBar(torrent.progress), details);
-  if (torrent.progress >= 1) {
+  if (isFinished) {
     item.append(createSubtitleControls(torrent.hash));
   }
   return item;
@@ -331,7 +465,7 @@ function createSubtitleControls(torrentHash) {
   const message = createElement("span", { className: "status" });
   const savedMessage = subtitleMessages.get(torrentHash);
   if (savedMessage) {
-    setStatus(message, savedMessage.text, savedMessage.isError);
+    setStatus(message, savedMessage.text, savedMessage.kind);
   }
 
   controls.append(button, message);
@@ -340,16 +474,16 @@ function createSubtitleControls(torrentHash) {
 
 async function fetchSubtitles(torrentHash) {
   subtitleRequestsInFlight.add(torrentHash);
-  showSubtitleMessage(torrentHash, "Looking for subtitles…");
+  showSubtitleMessage(torrentHash, "Looking for subtitles…", "busy");
   try {
     const result = await apiRequest(`api/downloads/${encodeURIComponent(torrentHash)}/subtitles`, {
       method: "POST",
     });
     subtitleRequestsInFlight.delete(torrentHash);
-    showSubtitleMessage(torrentHash, describeSubtitleResult(result));
+    showSubtitleMessage(torrentHash, describeSubtitleResult(result), "success");
   } catch (error) {
     subtitleRequestsInFlight.delete(torrentHash);
-    showSubtitleMessage(torrentHash, error.message, true);
+    showSubtitleMessage(torrentHash, error.message, "error");
   }
 }
 
@@ -360,8 +494,8 @@ function describeSubtitleResult(result) {
   return `Subtitle saved: ${result.subtitle_file}`;
 }
 
-function showSubtitleMessage(torrentHash, text, isError = false) {
-  subtitleMessages.set(torrentHash, { text, isError });
+function showSubtitleMessage(torrentHash, text, kind) {
+  subtitleMessages.set(torrentHash, { text, kind });
   // The list may have been re-rendered since the click, so look the item up again.
   const item = [...elements.downloadsList.children].find((child) => child.dataset.hash === torrentHash);
   item?.querySelector(".action")?.replaceWith(createSubtitleControls(torrentHash));
@@ -390,5 +524,5 @@ elements.searchForm.addEventListener("submit", (event) => {
     searchReleases(query);
   }
 });
-elements.showMoreButton.addEventListener("click", showMoreResults);
+elements.showMoreButton.addEventListener("click", showNextPage);
 startDownloadsRefresh();

@@ -9,22 +9,33 @@
 </head>
 <body>
   <header class="page-header">
-    <h1>Kinoarr</h1>
+    <h1><span class="brand">Kinoarr</span></h1>
   </header>
 
   <main>
-    <section aria-labelledby="search-heading">
-      <h2 id="search-heading">Search</h2>
+    <section aria-label="Search">
       <form id="search-form" class="search-form" role="search">
-        <input id="search-query" type="search" placeholder="Movie title" aria-label="Movie title" autocomplete="off">
+        <input id="search-query" type="search" placeholder="Search for a movie" aria-label="Movie title" autocomplete="off">
         <button type="submit">Search</button>
       </form>
-      <p id="search-status" class="status" role="status"></p>
+    </section>
+
+    <section aria-labelledby="downloads-heading">
+      <h2 id="downloads-heading">Downloads</h2>
+      <p id="downloads-status" class="status" role="status"></p>
+      <ul id="downloads-list" class="downloads"></ul>
+    </section>
+
+    <section id="results-section" aria-labelledby="results-heading" hidden>
+      <h2 id="results-heading">Results</h2>
+      <div id="result-filters" class="filters" hidden></div>
+      <p id="results-status" class="status" role="status"></p>
       <table id="results-table" class="results" hidden>
         <thead>
           <tr>
             <th>Title</th>
             <th>Indexer</th>
+            <th>Quality</th>
             <th class="numeric">Size</th>
             <th class="numeric">Seeders</th>
             <th class="numeric">Leechers</th>
@@ -34,13 +45,7 @@
         </thead>
         <tbody id="results-body"></tbody>
       </table>
-      <button id="show-more" type="button" class="secondary" hidden>Show more</button>
-    </section>
-
-    <section aria-labelledby="downloads-heading">
-      <h2 id="downloads-heading">Downloads</h2>
-      <p id="downloads-status" class="status" role="status"></p>
-      <ul id="downloads-list" class="downloads"></ul>
+      <button id="show-more" type="button" class="secondary show-more" hidden>Show more</button>
     </section>
   </main>
 </body>
