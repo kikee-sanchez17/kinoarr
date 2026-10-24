@@ -1,4 +1,5 @@
 import logging
+import tempfile
 import threading
 from pathlib import Path
 
@@ -8,13 +9,22 @@ from app.clients.opensubtitles import OpenSubtitlesClient
 from app.models import DownloadDetails, SubtitleCandidate, SubtitleFetchResult
 from app.movie_hash import movie_hash
 from app.services.subtitle_detection import SubtitleDetectionService
-from app.subtitles import best_candidate, english_sidecar_path, looks_english, matches_movie, read_subtitle_text
+from app.subtitles import (
+    DEFAULT_SUBTITLE_EXTENSION,
+    best_candidate,
+    english_sidecar_path,
+    looks_english,
+    matches_movie,
+    read_subtitle_text,
+)
 
 logger = logging.getLogger(__name__)
 
 PARTIAL_FILE_SUFFIX = ".part"
-UNSYNCED_FILE_SUFFIX = ".unsynced.part"
-SYNCED_FILE_SUFFIX = ".synced.part"
+# alass picks the subtitle format from the file extension, so the work files keep ".srt".
+UNSYNCED_FILE_NAME = f"unsynced{DEFAULT_SUBTITLE_EXTENSION}"
+SYNCED_FILE_NAME = f"synced{DEFAULT_SUBTITLE_EXTENSION}"
+WORK_FOLDER_PREFIX = "kinoarr-alass-"
 
 
 class SubtitleNotFoundError(Exception):
@@ -135,20 +145,24 @@ class SubtitleFetchService:
 
     def _synced_or_original(self, subtitle: bytes, video_path: Path) -> tuple[bytes, bool]:
         """The subtitle re-timed to the movie's audio, or the original if alass cannot do it."""
-        sidecar_path = english_sidecar_path(video_path)
-        unsynced_path = sidecar_path.with_name(sidecar_path.name + UNSYNCED_FILE_SUFFIX)
-        synced_path = sidecar_path.with_name(sidecar_path.name + SYNCED_FILE_SUFFIX)
         try:
-            _write_file(unsynced_path, subtitle)
-            self._alass_client.sync(video_path, unsynced_path, synced_path)
-            return _read_alass_output(synced_path), True
+            return self._synced(subtitle, video_path), True
         except AlassError as exc:
             # A subtitle that may be off is still better than none.
             logger.warning("Saving the subtitle for %s without re-timing it: %s", video_path.name, exc)
             return subtitle, False
-        finally:
-            unsynced_path.unlink(missing_ok=True)
-            synced_path.unlink(missing_ok=True)
+
+    def _synced(self, subtitle: bytes, video_path: Path) -> bytes:
+        # The work files live outside the media folder, so Jellyfin never sees them.
+        try:
+            with tempfile.TemporaryDirectory(prefix=WORK_FOLDER_PREFIX) as work_folder:
+                unsynced_path = Path(work_folder) / UNSYNCED_FILE_NAME
+                synced_path = Path(work_folder) / SYNCED_FILE_NAME
+                unsynced_path.write_bytes(subtitle)
+                self._alass_client.sync(video_path, unsynced_path, synced_path)
+                return _read_alass_output(synced_path)
+        except OSError as exc:
+            raise AlassError(f"cannot prepare the files for alass: {exc}") from exc
 
 
 def _for_same_movie(candidates: list[SubtitleCandidate], download_names: list[str]) -> list[SubtitleCandidate]:
@@ -201,13 +215,6 @@ def _read_alass_output(path: Path) -> bytes:
     return content
 
 
-def _write_file(path: Path, content: bytes) -> None:
-    try:
-        path.write_bytes(content)
-    except OSError as exc:
-        raise _write_error(path) from exc
-
-
 def _write_atomically(path: Path, content: bytes) -> None:
     # Write next to the target, then rename: Jellyfin never sees a half-written subtitle.
     partial_path = path.with_name(path.name + PARTIAL_FILE_SUFFIX)
@@ -216,10 +223,6 @@ def _write_atomically(path: Path, content: bytes) -> None:
         partial_path.replace(path)
     except OSError as exc:
         partial_path.unlink(missing_ok=True)
-        raise _write_error(path) from exc
-
-
-def _write_error(path: Path) -> SubtitleWriteError:
-    return SubtitleWriteError(
-        f"Cannot write {path.name}: check that Kinoarr can write to the downloads folder (PUID/PGID)"
-    )
+        raise SubtitleWriteError(
+            f"Cannot write {path.name}: check that Kinoarr can write to the downloads folder (PUID/PGID)"
+        ) from exc

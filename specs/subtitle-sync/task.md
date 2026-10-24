@@ -38,6 +38,14 @@ Implements [plan.md](plan.md). Tick each task when done.
 - [x] 15. Commit only when the user says so.
 
 ## After release (done by the user)
-- [ ] 16. Release a new version (bump `APP_VERSION`, tag), `docker compose pull && docker compose up -d` on the server.
-- [ ] 17. Delete Lady Bird's `.en.srt`, press "Get subtitles": a BluRay subtitle, synced to the audio, first line on time in Jellyfin. Note time and memory from `docker stats kinoarr`.
+- [x] 16. Release a new version (bump `APP_VERSION`, tag), `docker compose pull && docker compose up -d` on the server.
+  - 0.4.0 released and deployed by the user.
+- [x] 17. Delete Lady Bird's `.en.srt`, press "Get subtitles": a BluRay subtitle, synced to the audio, first line on time in Jellyfin. Note time and memory from `docker stats kinoarr`.
+  - With 0.4.0: `Lady.Bird.2017.720p.BluRay.x264.DTS-HDC` (23.976 fps, name match) was chosen instead of the screener, and the user confirmed it is in sync. It was saved without re-timing because of the bug in task 19, so the ranking alone fixed this movie. Re-timing on the server is still to be seen in a log after the fix is deployed.
 - [ ] 18. README (later task): mention alass for native installs.
+
+## Fix after 0.4.0
+- [x] 19. On the server, alass refused the work file `….en.srt.unsynced.part` ("unknown subtitle format"): it picks the format from the extension. The subtitle was saved without re-timing (the ranking itself worked: `…720p.BluRay.x264.DTS-HDC`, 23.976 fps).
+  - Work files now live in a temporary folder outside the media folder, named `unsynced.srt`/`synced.srt`.
+  - New test: alass receives `.srt` work files outside the movie folder, and the folder is removed afterwards.
+  - The earlier checks ran alass on `.srt` files directly and so missed it. Checked now through the real `SubtitleFetchService` with real ffprobe and alass, on the host and inside the image as user 1000: 8 s early → 0.19 s, only the `.en.srt` left in the movie folder.

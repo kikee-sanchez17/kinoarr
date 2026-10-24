@@ -57,11 +57,11 @@ In `fetch()`, after the torrent-copy step:
 2. Download the chosen file's bytes, as today.
 3. If the candidate is a hash match, write the bytes with `_write_atomically`, as today.
 4. Otherwise:
-   - write the bytes to a temporary `<video>.en.srt.unsynced.part`;
-   - run `alass.sync(video, that file, <video>.en.srt.synced.part)`;
-   - read alass's output and write it with `_write_atomically`. An empty or missing output counts as an `AlassError`.
+   - in a temporary folder outside the media folder (`tempfile.TemporaryDirectory`), write the bytes to `unsynced.srt`;
+   - run `alass.sync(video, unsynced.srt, synced.srt)`. The names must end in `.srt`: alass picks the format from the extension;
+   - read alass's output and write it with `_write_atomically`. An empty or missing output, or a work folder that can't be created, counts as an `AlassError`.
 
-   On `AlassError`, log a warning ("… without re-timing it: …") and write the original bytes instead. The temporary files are always removed (`finally`).
+   On `AlassError`, log a warning ("… without re-timing it: …") and write the original bytes instead. The work folder is always removed, and Jellyfin never sees the work files.
 5. Log one `INFO` line: `Saved subtitle X for torrent Y (name match, release 'Lady.Bird…BluRay…', 23.976 fps, video 23.976 fps, synced to the audio)`.
 6. Return `synced_to_audio=True` only when alass succeeded.
 

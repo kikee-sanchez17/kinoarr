@@ -283,6 +283,19 @@ def test_name_match_is_synced_to_the_audio(video):
     assert sorted(path.name for path in video.parent.iterdir()) == ["Movie.1968.1080p.en.srt", video.name]
 
 
+def test_alass_gets_srt_work_files_outside_the_movie_folder(video):
+    # alass reads the format from the extension: "Movie.en.srt.unsynced.part" failed on the home server.
+    alass = FakeAlass()
+    opensubtitles = FakeOpenSubtitles(by_name=[make_candidate(9)])
+
+    make_service(FakeDetection(video), opensubtitles, alass=alass).fetch(HASH)
+
+    [(_, subtitle_path, output_path)] = alass.calls
+    assert (subtitle_path.suffix, output_path.suffix) == (".srt", ".srt")
+    assert video.parent not in (subtitle_path.parent, output_path.parent)
+    assert not subtitle_path.parent.exists()
+
+
 def test_hash_match_is_saved_as_it_is(video):
     alass = FakeAlass()
     opensubtitles = FakeOpenSubtitles(by_hash=[make_candidate(7, hash_match=True)])
