@@ -198,14 +198,20 @@ def test_detect_subtitles_errors(error, expected_status):
 
 
 class FakeFetchService:
-    def __init__(self, error=None, status="downloaded"):
+    def __init__(self, error=None, status="downloaded", synced_to_audio=False):
         self._error = error
         self._status = status
+        self._synced_to_audio = synced_to_audio
 
     def fetch(self, torrent_hash: str) -> SubtitleFetchResult:
         if self._error:
             raise self._error
-        return SubtitleFetchResult(torrent_hash=torrent_hash, status=self._status, subtitle_file="Movie.en.srt")
+        return SubtitleFetchResult(
+            torrent_hash=torrent_hash,
+            status=self._status,
+            subtitle_file="Movie.en.srt",
+            synced_to_audio=self._synced_to_audio,
+        )
 
 
 def fetch_client_with(fake: FakeFetchService) -> TestClient:
@@ -217,7 +223,19 @@ def test_fetch_subtitle_returns_result():
     r = fetch_client_with(FakeFetchService()).post("/api/downloads/abc/subtitles")
 
     assert r.status_code == 200
-    assert r.json() == {"torrent_hash": "abc", "status": "downloaded", "subtitle_file": "Movie.en.srt"}
+    assert r.json() == {
+        "torrent_hash": "abc",
+        "status": "downloaded",
+        "subtitle_file": "Movie.en.srt",
+        "synced_to_audio": False,
+    }
+
+
+def test_fetch_subtitle_reports_a_subtitle_synced_to_the_audio():
+    r = fetch_client_with(FakeFetchService(synced_to_audio=True)).post("/api/downloads/abc/subtitles")
+
+    assert r.status_code == 200
+    assert r.json()["synced_to_audio"] is True
 
 
 def test_fetch_subtitle_reports_a_copy_from_the_torrent():

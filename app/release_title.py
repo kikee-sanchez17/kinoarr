@@ -1,7 +1,7 @@
 """Best-guess video details from a release title.
 
-Prowlarr does not report resolution or codec as data, but release names usually
-spell them out (e.g. "Movie.1968.1080p.BluRay.x264-GROUP").
+Prowlarr and OpenSubtitles do not report resolution, codec or source as data, but
+release names usually spell them out (e.g. "Movie.1968.1080p.BluRay.x264-GROUP").
 """
 
 import re
@@ -9,6 +9,8 @@ from typing import Literal
 
 Resolution = Literal["2160p", "1080p", "720p", "SD"]
 VideoCodec = Literal["H.265", "H.264", "AV1", "XviD/DivX"]
+# "pre-release" covers cam, telesync, telecine and screener copies, cut and timed differently from the final movie.
+ReleaseSource = Literal["pre-release", "BluRay", "WEB", "DVD", "HDTV"]
 
 
 def _token(pattern: str) -> re.Pattern[str]:
@@ -31,6 +33,19 @@ VIDEO_CODEC_PATTERNS: list[tuple[VideoCodec, re.Pattern[str]]] = [
     ("AV1", _token(r"av1")),
     ("XviD/DivX", _token(r"xvid|divx")),
 ]
+# Pre-release first: such a copy is timed differently even if the name mentions another source too.
+RELEASE_SOURCE_PATTERNS: list[tuple[ReleaseSource, re.Pattern[str]]] = [
+    ("pre-release", _token(r"cam|hdcam|camrip|ts|hdts|telesync|tc|hdtc|telecine|dvdscr|scr|screener|r5")),
+    ("BluRay", _token(r"blu-?ray|bdrip|brrip|bd|remux")),
+    ("WEB", _token(r"web(?:-?(?:dl|rip))?")),
+    ("DVD", _token(r"dvd(?:-?rip)?")),
+    ("HDTV", _token(r"hdtv|pdtv")),
+]
+# YTS (also published as YIFY, on domains like yts.mx) rarely puts its name after a dash.
+YTS_GROUP = "yts"
+YTS_PATTERN = _token(r"yts|yify")
+# The group closes the name: "...x264-GROUP" or "...x264-[GROUP]". "WEB-DL" is a source, not a group.
+TRAILING_GROUP_PATTERN = re.compile(r"(?<!web)-\s*\[?([a-z0-9]+)\]?\s*$", re.IGNORECASE)
 
 
 def detect_resolution(title: str) -> Resolution | None:
@@ -39,6 +54,17 @@ def detect_resolution(title: str) -> Resolution | None:
 
 def detect_video_codec(title: str) -> VideoCodec | None:
     return _first_match(title, VIDEO_CODEC_PATTERNS)
+
+
+def detect_release_source(title: str) -> ReleaseSource | None:
+    return _first_match(title, RELEASE_SOURCE_PATTERNS)
+
+
+def detect_release_group(title: str) -> str | None:
+    if YTS_PATTERN.search(title):
+        return YTS_GROUP
+    match = TRAILING_GROUP_PATTERN.search(title)
+    return match.group(1).casefold() if match else None
 
 
 def _first_match[T](title: str, patterns: list[tuple[T, re.Pattern[str]]]) -> T | None:

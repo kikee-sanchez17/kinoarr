@@ -212,3 +212,15 @@ def test_search_results_carry_the_movie_they_belong_to():
 
     assert (first.movie_title, first.movie_year) == ("The Exorcism of Emily Rose", 2005)
     assert (second.movie_title, second.movie_year) == (None, None)
+
+
+@respx.mock
+def test_search_results_carry_the_release_they_were_timed_for():
+    with_release = make_result(1, release="Lady.Bird.2017.720p.BluRay.x264.DTS-HDC", fps=23.976)
+    unknown_release = make_result(2, release="", fps=0.0)
+    respx.get(f"{API}/subtitles").mock(return_value=httpx.Response(200, json={"data": [with_release, unknown_release]}))
+
+    first, second = anonymous_client().search_english(query="lady bird 2017")
+
+    assert (first.release_name, first.frame_rate) == ("Lady.Bird.2017.720p.BluRay.x264.DTS-HDC", 23.976)
+    assert (second.release_name, second.frame_rate) == (None, None)

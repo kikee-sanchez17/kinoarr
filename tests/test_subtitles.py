@@ -2,13 +2,14 @@ from pathlib import Path
 
 import pytest
 
-from app.models import SubtitleCandidate, SubtitleStream
+from app.models import DownloadDetails, SubtitleCandidate, SubtitleStream
 from app.subtitles import (
     best_candidate,
     bundled_subtitles,
     english_sidecar_path,
     english_sidecars,
     find_main_video,
+    frame_rate_fit,
     is_english_embedded,
     is_english_sidecar,
     looks_english,
@@ -115,10 +116,28 @@ def test_english_sidecars_only_looks_beside_the_video(tmp_path):
     assert english_sidecars(movie) == [beside]
 
 
-def make_candidate(file_id: int, download_count: int, hash_match: bool = False) -> SubtitleCandidate:
+def make_candidate(
+    file_id: int,
+    download_count: int,
+    hash_match: bool = False,
+    release_name: str | None = None,
+    frame_rate: float | None = None,
+) -> SubtitleCandidate:
     return SubtitleCandidate(
-        file_id=file_id, file_name=f"{file_id}.srt", download_count=download_count, hash_match=hash_match
+        file_id=file_id,
+        file_name=f"{file_id}.srt",
+        download_count=download_count,
+        hash_match=hash_match,
+        release_name=release_name,
+        frame_rate=frame_rate,
     )
+
+
+UNKNOWN_DOWNLOAD = DownloadDetails(names=["Movie (1968)"], frame_rate=None)
+LADY_BIRD_DOWNLOAD = DownloadDetails(
+    names=["Lady Bird (2017) [BluRay] [1080p] [YTS.AM]", "Lady.Bird.2017.1080p.BluRay.x264-[YTS.AM]"],
+    frame_rate=24000 / 1001,
+)
 
 
 def test_english_sidecar_path_is_recognised_as_english_sidecar():
@@ -133,15 +152,111 @@ def test_english_sidecar_path_is_recognised_as_english_sidecar():
 def test_best_candidate_prefers_hash_match_over_downloads():
     candidates = [make_candidate(1, 10_000), make_candidate(2, 5, hash_match=True), make_candidate(3, 50)]
 
-    assert best_candidate(candidates).file_id == 2
+    assert best_candidate(candidates, UNKNOWN_DOWNLOAD).file_id == 2
 
 
 def test_best_candidate_without_hash_match_picks_most_downloaded():
-    assert best_candidate([make_candidate(1, 10), make_candidate(2, 50)]).file_id == 2
+    assert best_candidate([make_candidate(1, 10), make_candidate(2, 50)], UNKNOWN_DOWNLOAD).file_id == 2
 
 
 def test_best_candidate_of_nothing_is_none():
-    assert best_candidate([]) is None
+    assert best_candidate([], UNKNOWN_DOWNLOAD) is None
+
+
+def test_best_candidate_for_lady_bird_skips_the_popular_screener():
+    # The top results of a real OpenSubtitles name search for "lady bird 2017" (2026-10-24).
+    candidates = [
+        make_candidate(1, 85349, release_name="Lady Bird 2017 DVDScr XVID AC3 HQ Hive-CM8", frame_rate=30.0),
+        make_candidate(2, 84740, release_name="Lady.Bird.2017.720p.WEB-DL.DD5.1.H264-FGT", frame_rate=23.976),
+        make_candidate(3, 75342, release_name="Lady.Bird.2017.720p.BluRay.x264.DTS-HDC", frame_rate=23.976),
+        make_candidate(4, 28062, release_name="Lady.Bird.2017.1080p.BluRay.x264.DTS-HDC", frame_rate=23.976),
+        make_candidate(5, 21586, release_name="Lady.Bird.2017.720p.BluRay.x264-GECKOS", frame_rate=23.976),
+        make_candidate(6, 20053, release_name="Lady.Bird.2017.DVDScr.XVID.AC3.HQ.Hive-CM8", frame_rate=30.0),
+        make_candidate(7, 9619, release_name="Lady.Bird.2017.720p.WEB-DL.DD5.1.H264-FGT", frame_rate=None),
+        make_candidate(8, 6584, release_name="Lady Bird (2017)", frame_rate=None),
+    ]
+
+    assert best_candidate(candidates, LADY_BIRD_DOWNLOAD).file_id == 3
+
+
+def test_best_candidate_hash_match_beats_every_other_rule():
+    candidates = [
+        make_candidate(1, 5, hash_match=True, release_name="Lady Bird 2017 DVDScr", frame_rate=30.0),
+        make_candidate(2, 90000, release_name="Lady.Bird.2017.1080p.BluRay.x264-[YTS.AM]", frame_rate=23.976),
+    ]
+
+    assert best_candidate(candidates, LADY_BIRD_DOWNLOAD).file_id == 1
+
+
+def test_best_candidate_puts_pre_release_last():
+    candidates = [
+        make_candidate(1, 90000, release_name="Movie.2017.HDCAM", frame_rate=23.976),
+        make_candidate(2, 10, release_name="Movie.2017.HDTV", frame_rate=25.0),
+    ]
+
+    assert best_candidate(candidates, LADY_BIRD_DOWNLOAD).file_id == 2
+
+
+def test_best_candidate_pre_release_fits_a_pre_release_download():
+    screener_download = DownloadDetails(names=["Movie 2017 DVDScr XviD"], frame_rate=None)
+    candidates = [
+        make_candidate(1, 10, release_name="Movie.2017.DVDScr.XviD"),
+        make_candidate(2, 90000, release_name="Movie.2017.1080p.BluRay"),
+    ]
+
+    assert best_candidate(candidates, screener_download).file_id == 1
+
+
+def test_best_candidate_prefers_the_same_frame_rate():
+    candidates = [
+        make_candidate(1, 90000, release_name="Movie.2017.1080p.BluRay", frame_rate=25.0),
+        make_candidate(2, 10, release_name="Movie.2017.1080p.WEB-DL", frame_rate=23.976),
+    ]
+
+    assert best_candidate(candidates, LADY_BIRD_DOWNLOAD).file_id == 2
+
+
+def test_best_candidate_prefers_the_same_source():
+    candidates = [
+        make_candidate(1, 90000, release_name="Movie.2017.1080p.WEB-DL", frame_rate=23.976),
+        make_candidate(2, 10, release_name="Movie.2017.720p.BRRip", frame_rate=23.976),
+    ]
+
+    assert best_candidate(candidates, LADY_BIRD_DOWNLOAD).file_id == 2
+
+
+def test_best_candidate_prefers_the_same_group():
+    candidates = [
+        make_candidate(1, 90000, release_name="Movie.2017.1080p.BluRay.x264-SPARKS", frame_rate=23.976),
+        make_candidate(2, 10, release_name="Movie.2017.720p.BluRay.x264.YIFY", frame_rate=23.976),
+    ]
+
+    assert best_candidate(candidates, LADY_BIRD_DOWNLOAD).file_id == 2
+
+
+def test_best_candidate_without_video_frame_rate_skips_that_rule():
+    download = DownloadDetails(names=LADY_BIRD_DOWNLOAD.names, frame_rate=None)
+    candidates = [
+        make_candidate(1, 10, release_name="Movie.2017.1080p.BluRay", frame_rate=23.976),
+        make_candidate(2, 90000, release_name="Movie.2017.1080p.BluRay", frame_rate=30.0),
+    ]
+
+    assert best_candidate(candidates, download).file_id == 2
+
+
+@pytest.mark.parametrize(
+    ("subtitle_frame_rate", "video_frame_rate", "expected"),
+    [
+        (23.976, 24000 / 1001, 2),
+        (25.0, 25.0, 2),
+        (25.0, 24000 / 1001, 0),
+        (24.0, 24000 / 1001, 0),
+        (None, 24000 / 1001, 1),
+        (23.976, None, 1),
+    ],
+)
+def test_frame_rate_fit(subtitle_frame_rate, video_frame_rate, expected):
+    assert frame_rate_fit(subtitle_frame_rate, video_frame_rate) == expected
 
 
 def test_english_sidecar_path_keeps_another_format():

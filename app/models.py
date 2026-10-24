@@ -109,9 +109,19 @@ class SubtitleCandidate(BaseModel):
     hash_match: bool  # made for this exact release, so its timing fits
     movie_title: str | None = None  # the movie OpenSubtitles files it under
     movie_year: int | None = None
+    release_name: str | None = None  # the release it was timed for, e.g. "Movie.2017.720p.BluRay.x264-GROUP"
+    frame_rate: float | None = None  # frames per second of that release, when known
+
+
+class DownloadDetails(BaseModel):
+    """What Kinoarr knows about a downloaded movie when choosing a subtitle for it."""
+
+    names: list[str]  # the torrent name and the video file name, most telling first
+    frame_rate: float | None  # frames per second of the video, when ffprobe could read it
 
 
 class SubtitleFetchResult(BaseModel):
     torrent_hash: str
     status: Literal["downloaded", "already_present", "copied_from_torrent"]
     subtitle_file: str | None  # name of the saved or copied subtitle
+    synced_to_audio: bool = False  # re-timed to the movie's audio before saving

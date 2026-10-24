@@ -8,9 +8,11 @@ import codecs
 import html
 import re
 import unicodedata
+from collections.abc import Callable
 from pathlib import Path
 
-from app.models import SubtitleCandidate, SubtitleStream
+from app.models import DownloadDetails, SubtitleCandidate, SubtitleStream
+from app.release_title import ReleaseSource, detect_release_group, detect_release_source
 
 VIDEO_EXTENSIONS = {".mkv", ".mp4", ".m4v", ".avi", ".mov", ".wmv", ".ts", ".webm", ".ogv"}
 # The text formats Jellyfin reads as external subtitles.
@@ -50,6 +52,13 @@ FALLBACK_SUBTITLE_ENCODING = "cp1252"
 
 LEADING_ARTICLES = {"the", "a", "an"}
 YEAR_PATTERN = re.compile(r"^(19|20)\d\d$")
+
+PRE_RELEASE: ReleaseSource = "pre-release"
+# Release frame rates are written rounded (23.976 for 24000/1001), so equal means "this close".
+FRAME_RATE_TOLERANCE = 0.01
+FRAME_RATE_MATCH = 2
+FRAME_RATE_UNKNOWN = 1
+FRAME_RATE_MISMATCH = 0
 
 
 def find_main_video(content_path: Path) -> Path | None:
@@ -149,9 +158,38 @@ def matches_movie(title: str | None, year: int | None, names: list[str]) -> bool
     return any(_contains_run(normalize_title(name), title_words) and _year_fits(name, year) for name in names)
 
 
-def best_candidate(candidates: list[SubtitleCandidate]) -> SubtitleCandidate | None:
-    """Prefer subtitles made for this exact release, then the most downloaded."""
-    return max(candidates, key=lambda candidate: (candidate.hash_match, candidate.download_count), default=None)
+def best_candidate(candidates: list[SubtitleCandidate], download: DownloadDetails) -> SubtitleCandidate | None:
+    """Prefer subtitles timed for this release: the exact file, then a final cut, the same frame rate,
+    source and group, then the most downloaded."""
+    download_source = _first_detected(detect_release_source, download.names)
+    download_group = _first_detected(detect_release_group, download.names)
+
+    def ranking(candidate: SubtitleCandidate) -> tuple[bool, bool, int, bool, bool, int]:
+        release_name = candidate.release_name or ""
+        source = detect_release_source(release_name)
+        return (
+            candidate.hash_match,
+            # A pre-release subtitle only fits a pre-release download.
+            source != PRE_RELEASE or download_source == PRE_RELEASE,
+            frame_rate_fit(candidate.frame_rate, download.frame_rate),
+            download_source is not None and source == download_source,
+            download_group is not None and detect_release_group(release_name) == download_group,
+            candidate.download_count,
+        )
+
+    return max(candidates, key=ranking, default=None)
+
+
+def frame_rate_fit(subtitle_frame_rate: float | None, video_frame_rate: float | None) -> int:
+    if subtitle_frame_rate is None or video_frame_rate is None:
+        return FRAME_RATE_UNKNOWN
+    if abs(subtitle_frame_rate - video_frame_rate) <= FRAME_RATE_TOLERANCE:
+        return FRAME_RATE_MATCH
+    return FRAME_RATE_MISMATCH
+
+
+def _first_detected[T](detect: Callable[[str], T | None], names: list[str]) -> T | None:
+    return next((value for name in names if (value := detect(name)) is not None), None)
 
 
 def _name_tokens(path: Path) -> set[str]:

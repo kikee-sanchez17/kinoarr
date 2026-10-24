@@ -2,8 +2,10 @@ import logging
 import threading
 from pathlib import Path
 
+from app.clients.alass import AlassClient, AlassError
+from app.clients.ffprobe import FfprobeClient, FfprobeError
 from app.clients.opensubtitles import OpenSubtitlesClient
-from app.models import SubtitleCandidate, SubtitleFetchResult
+from app.models import DownloadDetails, SubtitleCandidate, SubtitleFetchResult
 from app.movie_hash import movie_hash
 from app.services.subtitle_detection import SubtitleDetectionService
 from app.subtitles import best_candidate, english_sidecar_path, looks_english, matches_movie, read_subtitle_text
@@ -11,6 +13,8 @@ from app.subtitles import best_candidate, english_sidecar_path, looks_english, m
 logger = logging.getLogger(__name__)
 
 PARTIAL_FILE_SUFFIX = ".part"
+UNSYNCED_FILE_SUFFIX = ".unsynced.part"
+SYNCED_FILE_SUFFIX = ".synced.part"
 
 
 class SubtitleNotFoundError(Exception):
@@ -27,15 +31,20 @@ class SubtitleWriteError(Exception):
 
 class SubtitleFetchService:
     """Kinoarr's subtitle rules: skip movies that already have one, prefer the torrent's own English subtitle,
-    otherwise download the best OpenSubtitles match for the same movie, and save it beside the movie."""
+    otherwise download the best OpenSubtitles match for the same movie, re-time it to the movie's audio unless
+    it was made for this exact file, and save it beside the movie."""
 
     def __init__(
         self,
         detection_service: SubtitleDetectionService,
         opensubtitles_client: OpenSubtitlesClient | None,
+        ffprobe_client: FfprobeClient,
+        alass_client: AlassClient,
     ) -> None:
         self._detection_service = detection_service
         self._opensubtitles_client = opensubtitles_client
+        self._ffprobe_client = ffprobe_client
+        self._alass_client = alass_client
         # One download at a time, so the manual endpoint and the checker never fetch the same movie twice.
         self._lock = threading.Lock()
 
@@ -55,12 +64,34 @@ class SubtitleFetchService:
 
             if self._opensubtitles_client is None:
                 raise SubtitleDownloadsDisabledError("Subtitle downloads are not configured: set OPENSUBTITLES_API_KEY")
-            candidate = self._find_candidate(self._opensubtitles_client, video_path, report.torrent_name)
-            subtitle_path = english_sidecar_path(video_path)
-            _write_atomically(subtitle_path, self._opensubtitles_client.download(candidate.file_id))
+            return self._download_from_opensubtitles(
+                self._opensubtitles_client, torrent_hash, video_path, report.torrent_name
+            )
 
-        logger.info("Saved subtitle %s for torrent %r", subtitle_path.name, report.torrent_name)
-        return SubtitleFetchResult(torrent_hash=torrent_hash, status="downloaded", subtitle_file=subtitle_path.name)
+    def _download_from_opensubtitles(
+        self, opensubtitles: OpenSubtitlesClient, torrent_hash: str, video_path: Path, torrent_name: str
+    ) -> SubtitleFetchResult:
+        download = self._download_details(video_path, torrent_name)
+        candidate = self._find_candidate(opensubtitles, video_path, download)
+        subtitle = opensubtitles.download(candidate.file_id)
+        synced_to_audio = False
+        if not candidate.hash_match:
+            subtitle, synced_to_audio = self._synced_or_original(subtitle, video_path)
+        subtitle_path = english_sidecar_path(video_path)
+        _write_atomically(subtitle_path, subtitle)
+
+        logger.info(
+            "Saved subtitle %s for torrent %r (%s)",
+            subtitle_path.name,
+            torrent_name,
+            _describe_choice(candidate, download, synced_to_audio),
+        )
+        return SubtitleFetchResult(
+            torrent_hash=torrent_hash,
+            status="downloaded",
+            subtitle_file=subtitle_path.name,
+            synced_to_audio=synced_to_audio,
+        )
 
     def _copy_bundled_english_subtitle(self, torrent_hash: str, video_path: Path) -> Path | None:
         for subtitle_path in self._detection_service.bundled_subtitles(torrent_hash):
@@ -77,19 +108,47 @@ class SubtitleFetchService:
             return target_path
         return None
 
+    def _download_details(self, video_path: Path, torrent_name: str) -> DownloadDetails:
+        try:
+            frame_rate = self._ffprobe_client.video_frame_rate(video_path)
+        except FfprobeError as exc:
+            # Ranking still works without it, so this is not fatal.
+            logger.warning(
+                "Cannot read the frame rate of %s, choosing the subtitle without it: %s", video_path.name, exc
+            )
+            frame_rate = None
+        return DownloadDetails(names=[torrent_name, video_path.stem], frame_rate=frame_rate)
+
     def _find_candidate(
-        self, opensubtitles: OpenSubtitlesClient, video_path: Path, torrent_name: str
+        self, opensubtitles: OpenSubtitlesClient, video_path: Path, download: DownloadDetails
     ) -> SubtitleCandidate:
-        download_names = [torrent_name, video_path.stem]
+        torrent_name = download.names[0]
         file_hash = _movie_hash_or_none(video_path)
         candidates = opensubtitles.search_english(movie_hash=file_hash) if file_hash else []
-        candidates = _for_same_movie(candidates, download_names)
+        candidates = _for_same_movie(candidates, download.names)
         if not candidates:
-            candidates = _for_same_movie(opensubtitles.search_english(query=torrent_name), download_names)
-        candidate = best_candidate(candidates)
+            candidates = _for_same_movie(opensubtitles.search_english(query=torrent_name), download.names)
+        candidate = best_candidate(candidates, download)
         if candidate is None:
             raise SubtitleNotFoundError(f"No English subtitle found on OpenSubtitles for {torrent_name!r}")
         return candidate
+
+    def _synced_or_original(self, subtitle: bytes, video_path: Path) -> tuple[bytes, bool]:
+        """The subtitle re-timed to the movie's audio, or the original if alass cannot do it."""
+        sidecar_path = english_sidecar_path(video_path)
+        unsynced_path = sidecar_path.with_name(sidecar_path.name + UNSYNCED_FILE_SUFFIX)
+        synced_path = sidecar_path.with_name(sidecar_path.name + SYNCED_FILE_SUFFIX)
+        try:
+            _write_file(unsynced_path, subtitle)
+            self._alass_client.sync(video_path, unsynced_path, synced_path)
+            return _read_alass_output(synced_path), True
+        except AlassError as exc:
+            # A subtitle that may be off is still better than none.
+            logger.warning("Saving the subtitle for %s without re-timing it: %s", video_path.name, exc)
+            return subtitle, False
+        finally:
+            unsynced_path.unlink(missing_ok=True)
+            synced_path.unlink(missing_ok=True)
 
 
 def _for_same_movie(candidates: list[SubtitleCandidate], download_names: list[str]) -> list[SubtitleCandidate]:
@@ -119,6 +178,36 @@ def _movie_hash_or_none(video_path: Path) -> str | None:
         return None
 
 
+def _describe_choice(candidate: SubtitleCandidate, download: DownloadDetails, synced_to_audio: bool) -> str:
+    match = "hash match" if candidate.hash_match else "name match"
+    timing = "synced to the audio" if synced_to_audio else "not re-timed"
+    return (
+        f"{match}, release {candidate.release_name or 'unknown'!r}, {_frame_rate_text(candidate.frame_rate)}, "
+        f"video {_frame_rate_text(download.frame_rate)}, {timing}"
+    )
+
+
+def _frame_rate_text(frame_rate: float | None) -> str:
+    return f"{frame_rate:.3f} fps" if frame_rate else "unknown fps"
+
+
+def _read_alass_output(path: Path) -> bytes:
+    try:
+        content = path.read_bytes()
+    except OSError as exc:
+        raise AlassError(f"alass wrote no subtitle: {exc}") from exc
+    if not content:
+        raise AlassError("alass wrote an empty subtitle")
+    return content
+
+
+def _write_file(path: Path, content: bytes) -> None:
+    try:
+        path.write_bytes(content)
+    except OSError as exc:
+        raise _write_error(path) from exc
+
+
 def _write_atomically(path: Path, content: bytes) -> None:
     # Write next to the target, then rename: Jellyfin never sees a half-written subtitle.
     partial_path = path.with_name(path.name + PARTIAL_FILE_SUFFIX)
@@ -127,6 +216,10 @@ def _write_atomically(path: Path, content: bytes) -> None:
         partial_path.replace(path)
     except OSError as exc:
         partial_path.unlink(missing_ok=True)
-        raise SubtitleWriteError(
-            f"Cannot write {path.name}: check that Kinoarr can write to the downloads folder (PUID/PGID)"
-        ) from exc
+        raise _write_error(path) from exc
+
+
+def _write_error(path: Path) -> SubtitleWriteError:
+    return SubtitleWriteError(
+        f"Cannot write {path.name}: check that Kinoarr can write to the downloads folder (PUID/PGID)"
+    )

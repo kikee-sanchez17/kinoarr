@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from app.clients.alass import AlassClient
 from app.clients.ffprobe import FfprobeClient
 from app.clients.opensubtitles import OpenSubtitlesClient
 from app.clients.prowlarr import ProwlarrClient
@@ -52,6 +53,11 @@ def get_ffprobe_client() -> FfprobeClient:
 
 
 @lru_cache
+def get_alass_client() -> AlassClient:
+    return AlassClient()
+
+
+@lru_cache
 def get_subtitle_detection_service() -> SubtitleDetectionService:
     return SubtitleDetectionService(get_qbittorrent_client(), get_ffprobe_client())
 
@@ -72,7 +78,9 @@ def get_opensubtitles_client() -> OpenSubtitlesClient | None:
 
 @lru_cache
 def get_subtitle_fetch_service() -> SubtitleFetchService:
-    return SubtitleFetchService(get_subtitle_detection_service(), get_opensubtitles_client())
+    return SubtitleFetchService(
+        get_subtitle_detection_service(), get_opensubtitles_client(), get_ffprobe_client(), get_alass_client()
+    )
 
 
 @lru_cache

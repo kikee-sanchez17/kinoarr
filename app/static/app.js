@@ -495,6 +495,9 @@ function describeSubtitleResult(result) {
   if (result.status === "copied_from_torrent") {
     return `Subtitle copied from the torrent: ${result.subtitle_file}`;
   }
+  if (result.synced_to_audio) {
+    return `Subtitle saved and synced to the audio: ${result.subtitle_file}`;
+  }
   return `Subtitle saved: ${result.subtitle_file}`;
 }
 

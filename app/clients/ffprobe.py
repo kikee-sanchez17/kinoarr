@@ -8,9 +8,12 @@ from app.models import SubtitleStream
 DEFAULT_EXECUTABLE = "ffprobe"
 # ffprobe only reads the file headers, but files on network storage can be slow.
 FFPROBE_TIMEOUT_SECONDS = 60
+SUBTITLE_STREAMS = "s"
 SUBTITLE_STREAM_ENTRIES = (
     "stream=index,codec_name:stream_tags=language,title:stream_disposition=forced,hearing_impaired"
 )
+FIRST_VIDEO_STREAM = "v:0"
+FRAME_RATE_ENTRIES = "stream=r_frame_rate"
 
 
 class FfprobeError(Exception):
@@ -24,21 +27,30 @@ class FfprobeClient:
         self._executable = executable
 
     def subtitle_streams(self, video_path: Path) -> list[SubtitleStream]:
-        output = self._run(video_path)
+        output = self._run(video_path, SUBTITLE_STREAMS, SUBTITLE_STREAM_ENTRIES)
         try:
             raw_streams = json.loads(output).get("streams", [])
             return [_to_subtitle_stream(raw) for raw in raw_streams]
         except (ValueError, AttributeError, KeyError, TypeError) as exc:
             raise FfprobeError(f"Unexpected ffprobe output for {video_path.name}") from exc
 
-    def _run(self, video_path: Path) -> str:
+    def video_frame_rate(self, video_path: Path) -> float | None:
+        """Frames per second of the first video stream, or None when the file does not say."""
+        output = self._run(video_path, FIRST_VIDEO_STREAM, FRAME_RATE_ENTRIES)
+        try:
+            raw_streams = json.loads(output).get("streams", [])
+            return _to_frame_rate(raw_streams[0].get("r_frame_rate", "")) if raw_streams else None
+        except (ValueError, AttributeError, TypeError) as exc:
+            raise FfprobeError(f"Unexpected ffprobe output for {video_path.name}") from exc
+
+    def _run(self, video_path: Path, stream_selector: str, entries: str) -> str:
         # Arguments as a list (no shell), so file names with spaces or quotes are safe.
         command = [
             self._executable,
             "-v", "error",
-            "-select_streams", "s",
+            "-select_streams", stream_selector,
             "-print_format", "json",
-            "-show_entries", SUBTITLE_STREAM_ENTRIES,
+            "-show_entries", entries,
             str(video_path),
         ]  # fmt: skip
         try:
@@ -67,3 +79,12 @@ def _to_subtitle_stream(raw: dict[str, Any]) -> SubtitleStream:
         forced=bool(disposition.get("forced", 0)),
         hearing_impaired=bool(disposition.get("hearing_impaired", 0)),
     )
+
+
+def _to_frame_rate(rate: str) -> float | None:
+    # ffprobe writes a fraction, e.g. "24000/1001" for 23.976 fps, and "0/0" when it does not know.
+    frames, _, seconds = rate.partition("/")
+    if not seconds:
+        return None
+    frame_count, duration = float(frames), float(seconds)
+    return frame_count / duration if frame_count and duration else None

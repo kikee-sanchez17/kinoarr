@@ -161,4 +161,7 @@ def _to_candidate(attributes: dict[str, Any]) -> SubtitleCandidate:
         hash_match=bool(attributes.get("moviehash_match")),
         movie_title=movie.get("title"),
         movie_year=movie.get("year"),
+        release_name=attributes.get("release") or None,
+        # The API gives 0 when the uploader did not say.
+        frame_rate=attributes.get("fps") or None,
     )

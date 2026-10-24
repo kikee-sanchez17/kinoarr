@@ -85,3 +85,47 @@ def test_failures_raise_ffprobe_error(monkeypatch, run_kwargs, expected_message)
 
     with pytest.raises(FfprobeError, match=expected_message):
         FfprobeClient().subtitle_streams(VIDEO)
+
+
+@pytest.mark.parametrize(
+    ("r_frame_rate", "expected"),
+    [("24000/1001", 23.976), ("25/1", 25.0), ("30000/1001", 29.97), ("0/0", None), ("", None)],
+)
+def test_video_frame_rate_parses_the_fraction(monkeypatch, r_frame_rate, expected):
+    fake_run(monkeypatch, stdout=json.dumps({"streams": [{"r_frame_rate": r_frame_rate}]}))
+
+    frame_rate = FfprobeClient().video_frame_rate(VIDEO)
+
+    assert frame_rate == (pytest.approx(expected, abs=0.001) if expected else None)
+
+
+def test_video_frame_rate_reads_the_first_video_stream(monkeypatch):
+    calls = fake_run(monkeypatch, stdout='{"streams": [{"r_frame_rate": "25/1"}]}')
+
+    FfprobeClient().video_frame_rate(VIDEO)
+
+    [command] = calls
+    assert ["-select_streams", "v:0"] == command[command.index("-select_streams") :][:2]
+    assert ["-show_entries", "stream=r_frame_rate"] == command[command.index("-show_entries") :][:2]
+    assert command[-1] == str(VIDEO)
+
+
+def test_video_frame_rate_without_a_video_stream(monkeypatch):
+    fake_run(monkeypatch, stdout="{}")
+
+    assert FfprobeClient().video_frame_rate(VIDEO) is None
+
+
+@pytest.mark.parametrize(
+    ("run_kwargs", "expected_message"),
+    [
+        ({"returncode": 1, "stderr": "Invalid data found when processing input"}, "Invalid data found"),
+        ({"stdout": "not json"}, "Unexpected ffprobe output"),
+        ({"stdout": '{"streams": [{"r_frame_rate": "abc/1"}]}'}, "Unexpected ffprobe output"),
+    ],
+)
+def test_video_frame_rate_failures_raise_ffprobe_error(monkeypatch, run_kwargs, expected_message):
+    fake_run(monkeypatch, **run_kwargs)
+
+    with pytest.raises(FfprobeError, match=expected_message):
+        FfprobeClient().video_frame_rate(VIDEO)
